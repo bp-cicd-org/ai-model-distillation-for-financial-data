@@ -736,6 +736,16 @@ install_nemo_microservices () {
 
   sleep 15
 
+  # Inject WANDB_API_KEY into demo-values.yaml if present
+  if [[ -n "$WANDB_API_KEY" ]]; then
+    log "Injecting WANDB_API_KEY into demo-values.yaml..."
+    # Use yq to add WANDB_API_KEY to container_defaults.env
+    yq eval '.customizer.customizerConfig.training.container_defaults.env += [{"name": "WANDB_API_KEY", "value": "'$WANDB_API_KEY'"}]' -i demo-values.yaml
+    log "✓ WANDB_API_KEY injected successfully"
+  else
+    log "WANDB_API_KEY not found in environment - W&B logging will be disabled"
+  fi
+
   # Build version argument if specified
   local version_arg=""
   if [[ -n "$HELM_CHART_VERSION" ]]; then
@@ -747,6 +757,64 @@ install_nemo_microservices () {
     --password=$NGC_API_KEY
 
   sleep 20
+}
+
+install_kyverno() {
+  log "Installing Kyverno for WandB injection..."
+  
+  # Add Kyverno Helm repo
+  helm repo add kyverno https://kyverno.github.io/kyverno/ 2>/dev/null || true
+  helm repo update
+  
+  # Install Kyverno
+  helm install kyverno kyverno/kyverno \
+    --namespace kyverno \
+    --create-namespace \
+    --set replicaCount=1 \
+    --set admissionController.replicas=1
+  
+  log "Waiting for Kyverno to be ready..."
+  sleep 30
+  
+  # Create Kyverno policy for WandB injection
+  log "Creating Kyverno policy to inject WANDB_API_KEY into training pods..."
+  
+  cat <<EOF | kubectl apply -f -
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: inject-wandb-api-key
+  annotations:
+    policies.kyverno.io/title: Inject WANDB API Key into Training Jobs
+    policies.kyverno.io/category: Other
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      This policy automatically injects the WANDB_API_KEY environment variable
+      from the wandb-api-key secret into all NeMo training job pods.
+spec:
+  rules:
+  - name: inject-wandb-env
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          names:
+          - "cust-*-training-job-worker-*"
+    mutate:
+      patchStrategicMerge:
+        spec:
+          containers:
+          - (name): "*"
+            env:
+            - name: WANDB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: wandb-api-key
+                  key: api-key
+EOF
+
+  log "✓ Kyverno installed and WandB injection policy created"
 }
 
 wait_for_pods() {
@@ -982,7 +1050,17 @@ main() {
   install_nemo_microservices
   restore_output
 
-  # Step 6: Wait for pods
+  # Step 6: Install Kyverno for WandB injection (only if WANDB_API_KEY is set)
+  if [[ -n "$WANDB_API_KEY" ]]; then
+    update_progress
+    redirect_output
+    install_kyverno
+    restore_output
+  else
+    log "WANDB_API_KEY not set - skipping Kyverno installation"
+  fi
+
+  # Step 7: Wait for pods
   update_progress
   redirect_output
   wait_for_pods
@@ -999,16 +1077,6 @@ main() {
   redirect_output
   configure_dns
   restore_output
-  
-  # Fix wandb-secret for training jobs (inline, right after Helm install)
-  if [[ -n "$WANDB_API_KEY" ]]; then
-    log "Patching wandb-secret for training jobs..."
-    WANDB_API_KEY_B64=$(echo -n "$WANDB_API_KEY" | base64 -w 0)
-    kubectl patch secret wandb-secret -n "$NAMESPACE" --type='json' \
-      -p='[{"op": "add", "path": "/data/api-key", "value": "'$WANDB_API_KEY_B64'"}]' 2>/dev/null
-    kubectl rollout restart deployment nemo-customizer -n "$NAMESPACE" 2>/dev/null
-    log "✓ Wandb configured for training jobs"
-  fi
 
   # Final success message for non-progress mode
   if [[ "$SHOW_PROGRESS_BAR" != "true" ]]; then
