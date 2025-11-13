@@ -4,8 +4,6 @@
 
 existingSecret: ngc-api
 existingImagePullSecret: nvcrimagepullsecret
-
-
 data-store:
   enabled: true
   external:
@@ -13,7 +11,6 @@ data-store:
     domain: data-store.test
   persistence:
     size: 2Gi
-
 customizer:
   enabled: true
   modelsStorage:
@@ -29,41 +26,39 @@ customizer:
         enabled: true
   # WandB secret configuration for customizer subchart
   wandb:
-    secretValue: ""  # Clear default value to use existingSecret instead
-    existingSecret: "wandb-secret"
+    secretValue: "" # Clear default value to use existingSecret instead
+    existingSecret: "wandb-api-key"
     existingSecretKey: "api-key"
   customizerConfig:
     training:
       pvc:
         storageClass: "standard"
         volumeAccessMode: "ReadWriteOnce"
-      # Configure training container to mount wandb API key as environment variable
+      # Configure training container with WANDB environment variables
+      # Following NVIDIA NeMo documentation - container_defaults only supports direct values, not valueFrom
+      # WANDB_API_KEY will be automatically injected by deploy-nmp.sh if set in ~/.env
       container_defaults:
         env:
+          - name: WANDB_BASE_URL
+            value: "https://api.wandb.ai"
           - name: WANDB_API_KEY
-            valueFrom:
-              secretKeyRef:
-                name: wandb-secret
-                key: api-key
+            value: e0dae5c27937567b0d7c792082d063b2d7f7eed6
+          - name: WANDB_API_KEY
+            value: e0dae5c27937567b0d7c792082d063b2d7f7eed6
     # Weights & Biases configuration
     # If wandb-api-key secret exists, training metrics will be logged to W&B
     wandb:
-      entity: null  # Optional: set your W&B team/username
+      entity: null # Optional: set your W&B team/username
       project: "ai-model-distillation-financial"
-
-
 evaluator:
   milvus:
     enabled: false
-
 guardrails:
   enabled: false
-
 ingress:
   enabled: true
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: 1024m
-
 deployment-management:
   deployments:
     defaultStorageClass: standard
