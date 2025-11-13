@@ -27,21 +27,30 @@ customizer:
         enabled: true
       meta/llama-3.1-8b-instruct@2.0:
         enabled: true
+  # WandB secret configuration for customizer subchart
+  wandb:
+    secretValue: ""  # Clear default value to use existingSecret instead
+    existingSecret: "wandb-secret"
+    existingSecretKey: "api-key"
   customizerConfig:
     training:
       pvc:
         storageClass: "standard"
         volumeAccessMode: "ReadWriteOnce"
+      # Configure training container to mount wandb API key as environment variable
+      container_defaults:
+        env:
+          - name: WANDB_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: wandb-secret
+                key: api-key
     # Weights & Biases configuration
     # If wandb-api-key secret exists, training metrics will be logged to W&B
     wandb:
       entity: null  # Optional: set your W&B team/username
       project: "ai-model-distillation-financial"
 
-# W&B secret configuration (uses secret created by notebook or deploy script)
-wandb:
-  existingSecret: "wandb-api-key"
-  existingSecretKey: "api-key"
 
 evaluator:
   milvus:
