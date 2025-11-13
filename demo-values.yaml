@@ -32,6 +32,16 @@ customizer:
       pvc:
         storageClass: "standard"
         volumeAccessMode: "ReadWriteOnce"
+    # Weights & Biases configuration
+    # If wandb-api-key secret exists, training metrics will be logged to W&B
+    wandb:
+      entity: null  # Optional: set your W&B team/username
+      project: "ai-model-distillation-financial"
+
+# W&B secret configuration (uses secret created by notebook or deploy script)
+wandb:
+  existingSecret: "wandb-api-key"
+  existingSecretKey: "api-key"
 
 evaluator:
   milvus:
