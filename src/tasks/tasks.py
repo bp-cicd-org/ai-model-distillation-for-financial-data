@@ -500,8 +500,10 @@ def run_generic_eval(
     logger.info(f"Running {eval_type} evaluation")
 
     # Get the judge model config from the previous result
+    # For classification workloads, llm_judge_config can be None
     llm_judge_config = previous_result.llm_judge_config
-    evaluator = Evaluator(judge_model_config=llm_judge_config.judge_model_config())
+    judge_model_config = llm_judge_config.judge_model_config() if llm_judge_config else None
+    evaluator = Evaluator(judge_model_config=judge_model_config)
     start_time = datetime.utcnow()
 
     tool_eval_types = [None]
