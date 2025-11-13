@@ -624,6 +624,14 @@ setup_ngc_and_helm() {
       -n "$NAMESPACE" \
       --dry-run=client -o yaml | kubectl apply -f -
     log "W&B secret created. Training metrics will be logged to https://wandb.ai"
+    
+    # Also patch the wandb-secret that NeMo Customizer uses
+    # The customizer expects the API key in the wandb-secret with key 'api-key'
+    log "Patching wandb-secret for NeMo Customizer..."
+    WANDB_API_KEY_B64=$(echo -n "$WANDB_API_KEY" | base64 -w 0)
+    kubectl patch secret wandb-secret -n "$NAMESPACE" --type='json' \
+      -p='[{"op": "add", "path": "/data/api-key", "value": "'$WANDB_API_KEY_B64'"}]' \
+      2>/dev/null || log "wandb-secret will be patched after Helm install"
   else
     log "WANDB_API_KEY not set - W&B logging disabled"
     log "To enable W&B: add WANDB_API_KEY to ~/.env"
