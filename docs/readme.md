@@ -1,6 +1,6 @@
-# Data Flywheel Blueprint Documentation
+# AI Model Distillation for Financial Data Developer Example Documentation
 
-Welcome to the Data Flywheel Blueprint documentation! This guide helps you navigate our comprehensive documentation to find exactly what you need.
+Welcome to the AI Model Distillation for Financial Data Developer Example documentation! This guide helps you navigate our comprehensive documentation to find exactly what you need.
 
 ## 🚀 Quick Start Paths
 
@@ -147,7 +147,7 @@ graph TD
 
 ## 🤝 Getting Help
 
-- **GitHub Issues:** [Report bugs or request features](https://github.com/NVIDIA-AI-Blueprints/data-flywheel/issues)
+- **GitHub Issues:** [Report bugs or request features](https://github.com/NVIDIA-AI-Blueprints/ai-model-distillation-for-financial-data/issues)
 - **Documentation Issues:** Found something unclear? Let us know!
 - **Community:** Join discussions and share experiences
 
