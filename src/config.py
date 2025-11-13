@@ -397,6 +397,7 @@ class Settings(BaseSettings):
     icl_config: ICLConfig | None = None  # Made optional since ICL is no longer used
     logging_config: LoggingConfig = Field(default_factory=LoggingConfig)
     mlflow_config: MLflowConfig = Field(default_factory=MLflowConfig)
+    llm_judge_config: LLMJudgeConfig | None = None  # Optional, only needed for tool-calling-judge evaluation
 
     @model_validator(mode="after")
     def validate_icl_and_data_split_consistency(self) -> "Settings":

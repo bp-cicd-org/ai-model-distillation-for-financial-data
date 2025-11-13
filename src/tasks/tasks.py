@@ -130,22 +130,32 @@ def initialize_workflow(
     # update flywheel run status to running
     db_manager.update_flywheel_run_status(flywheel_run_id, FlywheelRunStatus.RUNNING)
 
-    # read llm_as_judge config
-    llm_as_judge = LLMAsJudge()
-    llm_as_judge_cfg = llm_as_judge.config
-
-    # Create LLM judge run using TaskDBManager
-    llm_judge_run = LLMJudgeRun(
-        flywheel_run_id=ObjectId(flywheel_run_id),
-        model_name=llm_as_judge_cfg.model_name,
-        deployment_type=llm_as_judge_cfg.deployment_type,
-        deployment_status=(
-            DeploymentStatus.READY if llm_as_judge_cfg.is_remote else DeploymentStatus.CREATED
-        ),
+    # read llm_as_judge config - only needed for tool-calling-judge evaluation
+    # For classification workloads, this is not needed
+    needs_llm_judge = (
+        settings.evaluation_config.workload_type == "tool_calling"
+        and settings.evaluation_config.tool_eval_type == "tool-calling-judge"
     )
+    
+    if needs_llm_judge:
+        llm_as_judge = LLMAsJudge()
+        llm_as_judge_cfg = llm_as_judge.config
 
-    # Insert using TaskDBManager
-    llm_judge_run.id = db_manager.create_llm_judge_run(llm_judge_run)
+        # Create LLM judge run using TaskDBManager
+        llm_judge_run = LLMJudgeRun(
+            flywheel_run_id=ObjectId(flywheel_run_id),
+            model_name=llm_as_judge_cfg.model_name,
+            deployment_type=llm_as_judge_cfg.deployment_type,
+            deployment_status=(
+                DeploymentStatus.READY if llm_as_judge_cfg.is_remote else DeploymentStatus.CREATED
+            ),
+        )
+
+        # Insert using TaskDBManager
+        llm_judge_run.id = db_manager.create_llm_judge_run(llm_judge_run)
+    else:
+        # For classification workloads, we don't need an LLM judge
+        llm_as_judge_cfg = None
 
     # Create NIM runs for each NIM in settings
     for nim in settings.nims:
@@ -265,6 +275,12 @@ def wait_for_llm_as_judge(previous_result: TaskResult) -> TaskResult:
     assert isinstance(previous_result, TaskResult)
 
     llm_as_judge_cfg = previous_result.llm_judge_config
+    
+    # If llm_as_judge_cfg is None (e.g., for classification workloads), skip this task
+    if llm_as_judge_cfg is None:
+        logger.info("LLM Judge not configured for this workload, skipping wait_for_llm_as_judge task")
+        return previous_result
+    
     llm_judge_run = LLMJudgeRun(**db_manager.find_llm_judge_run(previous_result.flywheel_run_id))
 
     try:

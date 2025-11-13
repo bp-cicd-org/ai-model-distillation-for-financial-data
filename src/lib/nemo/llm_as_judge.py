@@ -27,6 +27,11 @@ logger = setup_logging("data_flywheel.nemo.llm_as_judge")
 
 class LLMAsJudge:
     def __init__(self):
+        if settings.llm_judge_config is None:
+            raise RuntimeError(
+                "LLM judge configuration is required but not provided. "
+                "Please add llm_judge_config to your configuration if using tool-calling-judge evaluation."
+            )
         self.config = settings.llm_judge_config
         self.config_type = self.config.deployment_type
 
