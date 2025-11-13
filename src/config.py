@@ -391,7 +391,6 @@ class Settings(BaseSettings):
 
     nmp_config: NMPConfig
     nims: list[NIMConfig]
-    llm_judge_config: LLMJudgeConfig
     training_config: TrainingConfig
     data_split_config: DataSplitConfig
     evaluation_config: EvaluationConfig = Field(default_factory=EvaluationConfig)
@@ -432,7 +431,12 @@ class Settings(BaseSettings):
             config_data = yaml.safe_load(f)
             lora_config = LoRAConfig(**config_data["lora_config"])
             training_config = TrainingConfig(**config_data["training_config"], lora=lora_config)
-            llm_judge_config = LLMJudgeConfig.from_json(config_data["llm_judge_config"])
+            # Note: llm_judge_config is not used in this workflow (classification)
+            # It's only needed for tool-calling-judge evaluation type
+            # if "llm_judge_config" in config_data:
+            #     llm_judge_config = LLMJudgeConfig.from_json(config_data["llm_judge_config"])
+            # else:
+            #     llm_judge_config = None
             logging_config = (
                 LoggingConfig(**config_data.get("logging_config", {}))
                 if "logging_config" in config_data
@@ -470,7 +474,6 @@ class Settings(BaseSettings):
             return cls(
                 nmp_config=NMPConfig(**config_data["nmp_config"]),
                 nims=[NIMConfig(**nim) for nim in unique_nims],
-                llm_judge_config=llm_judge_config,
                 training_config=training_config,
                 data_split_config=DataSplitConfig(**config_data["data_split_config"]),
                 icl_config=icl_config,

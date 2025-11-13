@@ -153,3 +153,26 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Data files we don't want to check in
+ext-data
+tmp
+.DS_Store
+
+# Cache
+.ruff_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+*-helm-*
+*.log
+nemo-errors*

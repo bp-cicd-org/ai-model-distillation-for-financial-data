@@ -587,6 +587,12 @@ start_minikube() {
 
 # === Phase 2: NGC Auth and Helm Setup ===
 setup_ngc_and_helm() {
+  # Load .env file if it exists
+  if [[ -f ~/.env ]]; then
+    log "Loading environment from ~/.env"
+    export $(grep -v '^#' ~/.env | grep -v '^$' | xargs)
+  fi
+
   # Handle NGC API key prompting even when progress bar is enabled
   if [[ -z "$NGC_API_KEY" ]]; then
     if [[ "$SHOW_PROGRESS_BAR" == "true" ]]; then
@@ -609,6 +615,19 @@ setup_ngc_and_helm() {
 
   kubectl create secret generic ngc-api \
     --from-literal=NGC_API_KEY="$NGC_API_KEY"
+
+  # Setup W&B if API key is present
+  if [[ -n "$WANDB_API_KEY" ]]; then
+    log "WANDB_API_KEY detected - configuring Weights & Biases..."
+    kubectl create secret generic wandb-api-key \
+      --from-literal=api-key="$WANDB_API_KEY" \
+      -n "$NAMESPACE" \
+      --dry-run=client -o yaml | kubectl apply -f -
+    log "W&B secret created. Training metrics will be logged to https://wandb.ai"
+  else
+    log "WANDB_API_KEY not set - W&B logging disabled"
+    log "To enable W&B: add WANDB_API_KEY to ~/.env"
+  fi
 }
 
 # === Phase 3: Deploy Helm Chart ===
