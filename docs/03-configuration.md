@@ -64,8 +64,8 @@ Learn how to configure the Data Flywheel Foundational Blueprint using this guide
 | **Minimum GPU** | **Self-hosted LLM Judge**: 6× (NVIDIA H100, or A100 GPUs)<br>**Remote LLM Judge**: 2× (NVIDIA H100, or A100 GPUs) |
 | **Cluster** | Single-node NVIDIA GPU cluster on Linux with cluster-admin permissions |
 | **Disk Space** | At least 200 GB free |
-| **Software** | Python 3.11<br>Docker Engine<br>Docker Compose v2 |
-| **Services** | Elasticsearch 8.12.2<br>MongoDB 7.0<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing) |
+| **Software** | Python 3.12<br>Docker Engine<br>Docker Compose v2 |
+| **Services** | Elasticsearch 8.12.2<br>MongoDB 7.0<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing)<br>MLflow 2.22.0<br>Wandb 0.22.3 |
 | **Resource** | **Minimum Memory**: 1 GB (512 MB reserved for Elasticsearch)<br>**Storage**: Varies by log volume or model size<br>**Network**: Ports 8000 (API), 9200 (Elasticsearch), 27017 (MongoDB), 6379 (Redis) |
 | **Development** | Docker Compose for local development with hot reloading<br>Supports macOS (Darwin) and Linux<br>Optional: GPU support for model inference |
 | **Production** | Kubernetes cluster (recommended)<br>Resources scale with workload<br>Persistent volume support for data storage |
@@ -323,6 +323,7 @@ Currently supported models include:
 - Meta Llama 3.1 8B Instruct
 - Meta Llama 3.2 1B Instruct
 - Meta Llama 3.2 3B Instruct
+- Meta Llama 3.3 Nemotron Super 49b v1
 - Meta Llama 3.3 70B Instruct
 
 Note: Not all models may be enabled by default in the configuration. Enable them by uncommenting and configuring the appropriate sections in `config/config.yaml`.
