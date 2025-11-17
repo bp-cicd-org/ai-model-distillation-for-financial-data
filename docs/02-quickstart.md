@@ -10,10 +10,10 @@ This quickstart provides an initial [News headlines dataset](../data/news_classi
 
 | Requirement Type | Details |
 |-------------------------|---------|
-| Minimum GPU | 2× (NVIDIA H100 or A100 or B200 GPUs) |
+| Minimum GPU | 2× (NVIDIA A100/H100/H200/B200 GPUs) |
 | Cluster | Single-node NVIDIA GPU cluster on Linux with cluster-admin permissions |
 | Disk Space | At least 200 GB free |
-| Software | Python 3.11<br>Docker Engine<br>Docker Compose v2 |
+| Software | Python 3.12<br>Docker Engine<br>Docker Compose v2 |
 
 > **📖 For complete system requirements:** See [System Requirements](03-configuration.md#system-requirements)
 
@@ -42,7 +42,7 @@ You must have Git Large File Storage (LFS) installed and configured to download 
 
 ---
 
-## Set Up the Data Flywheel Blueprint
+## Set Up the AI Model Distillation for Financial Data developer example
 
 ### 1. Log In to NGC
 
@@ -57,6 +57,7 @@ To deploy NMP, follow the [NeMo Microservices Platform Prerequisites](https://do
 
 **Use Manual Installation Only**
 
+The AI Model Distillation for Financial Data developer example uses the NVIDIA Data Flywheel Blueprint to demonstrate how NVIDIA technology enables continuous model fine-tuning and distillation, enabling integration into financial workflows.
 For the Data Flywheel Blueprint, use the [Install Manually](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/minikube-manual.html) option. The deployment scripts option should be avoided as it deploys models outside the namespace of the Data Flywheel and can cause conflict.
 
 **Use Override Values File (Bitnami Workaround)**
