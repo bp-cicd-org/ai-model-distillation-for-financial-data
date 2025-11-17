@@ -5,7 +5,7 @@ nmp_config:
 
 
   # All resources created in NeMo Microservices Platform (NMP) will be namespaced to this value
-  nmp_namespace: "dfwbp"
+  nmp_namespace: "dfwfd"
 
 # Logging configuration
 logging_config:
@@ -17,7 +17,7 @@ logging_config:
 mlflow_config:
   # enabled: automatically set based on COMPOSE_PROFILES environment variable
   tracking_uri: "http://0.0.0.0:5000"
-  experiment_name_prefix: "data-flywheel"
+  experiment_name_prefix: "findistil"
   artifact_location: "./mlruns"
 
 nims:
