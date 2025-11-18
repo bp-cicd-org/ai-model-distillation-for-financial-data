@@ -1,13 +1,13 @@
 # Production Deployment and Operations Guide
 
-Learn how to deploy and operate the Data Flywheel Blueprint in production environments using Kubernetes, with comprehensive monitoring, scaling, and disaster recovery strategies.
+Learn how to deploy and operate the developer example in production environments using Kubernetes, with comprehensive monitoring, scaling, and disaster recovery strategies.
 
 > **📖 For prerequisites and system requirements:** Refer to [System Requirements](03-configuration.md#system-requirements)
 > **📖 For environment setup:** Refer to [Environment Variables](03-configuration.md#environment-variables)
 
 ## Production Architecture Overview
 
-The Data Flywheel Blueprint supports production deployment on Kubernetes clusters. The following architecture shows how components work together:
+The developer example supports production deployment on Kubernetes clusters. The following architecture shows how components work together:
 
 ```mermaid
 graph TB
@@ -112,8 +112,6 @@ secrets:
   ngcApiKey: ""  # Set this to your NGC API key
   nvidiaApiKey: "" # Set this to your NVIDIA API key
   hfToken: "" # Set this to your HF token
-  llmJudgeApiKey: "" # Set this to your LLM Judge API key (optional)
-  embApiKey: "" # Set this to your Embedding API key (optional)
 ```
 
 #### Default Configuration (from `values.yaml`)
@@ -121,7 +119,7 @@ secrets:
 Here is the default configuration; you can use these values if you want to revert your changes to this default:
 
 ```yaml
-# Data Flywheel server configuration
+# developer example server configuration
 foundationalFlywheelServer:
   image:
     repository: nvcr.io/nvidia/blueprint/foundational-flywheel-server
@@ -274,19 +272,6 @@ volcano-system                      Active   16m  👈
 > **📖 For complete installation process:** Refer to [Chart Installation](11-helm-installation.md#step-6-chart-installation)
 > **📖 For environment preparation:** Refer to [Environment Preparation](11-helm-installation.md#step-1-environment-preparation)
 > **📖 For post-installation setup:** Refer to [Post-Installation Setup](11-helm-installation.md#post-installation-setup)
-
-```bash
-# Basic production deployment
-helm install data-flywheel ./deploy/helm/data-flywheel \
-  --namespace nv-nvidia-blueprint-data-flywheel \
-  --create-namespace \
-  --set secrets.ngcApiKey=$NGC_API_KEY \
-  --set secrets.nvidiaApiKey=$NVIDIA_API_KEY \
-  --set secrets.hfToken=$HF_TOKEN \
-  --set secrets.llmJudgeApiKey=$LLM_JUDGE_API_KEY \
-  --set secrets.embApiKey=$EMB_API_KEY \
-  -f ./deploy/helm/data-flywheel/override-values.yaml
-```
 
 > **💡 Production Tips:**
 >

@@ -1,19 +1,19 @@
-# Extracting Fine-Tuned LoRA Models from DFWBP and Deploying with NIM
+# Extracting Fine-Tuned LoRA Models and Deploying with NIM
 
 ## Overview
 
-This guide explains how to extract fine-tuned LoRA (Low-Rank Adaptation) models from the Data Flywheel Blueprint (DFWBP) datastore and deploy them with standalone NVIDIA NIM for inference outside the DFWBP environment.
+This guide explains how to extract fine-tuned LoRA (Low-Rank Adaptation) models from the developer example datastore and deploy them with standalone NVIDIA NIM for inference outside the developer example environment.
 
-After completing fine-tuning with DFWBP, you can extract the resulting LoRA adapters using the HuggingFace CLI and deploy them in production environments, edge deployments, or integrate them with other systems.
+After completing fine-tuning with the developer example, you can extract the resulting LoRA adapters using the HuggingFace CLI and deploy them in production environments, edge deployments, or integrate them with other systems.
 
 ## Prerequisites
 
 Before extracting LoRA models, ensure you have:
 
-- ✅ **Completed LoRA Fine-tuning**: Trained a LoRA model using DFWBP
+- ✅ **Completed LoRA Fine-tuning**: Trained a LoRA model using the developer example
 - ✅ **HuggingFace CLI**: Installed `huggingface-cli` tool
 - ✅ **Access Credentials**: Valid HF_TOKEN with datastore access
-- ✅ **Datastore Endpoint**: External URL for your DFWBP datastore
+- ✅ **Datastore Endpoint**: External URL for your datastore
 
 ## 1. Install Required Tools
 
@@ -33,19 +33,19 @@ huggingface-cli --help
 Set up your environment variables for datastore access:
 
 ```bash
-# Set your HuggingFace token (same token used by DFWBP)
+# Set your HuggingFace token (same token used by the developer example)
 export HF_TOKEN="your_huggingface_token"
 
 # Set the external datastore endpoint 
-# Replace with your actual DFWBP datastore URL
+# Replace with your actual developer example datastore URL
 export HF_ENDPOINT="https://your-datastore-domain.com/v1/hf"
 ```
 
-> **Note**: The `HF_ENDPOINT` variable is deployment-specific and should point to your DFWBP datastore's external URL. Contact your DFWBP administrator for the correct endpoint URL for your deployment.
+> **Note**: The `HF_ENDPOINT` variable is deployment-specific and should point to your datastore's external URL. Contact your system administrator for the correct endpoint URL for your deployment.
 
 ## 3. Identify Your Fine-Tuned Model
 
-DFWBP stores fine-tuned models using a predictable naming convention. However, you should always get the exact model name and revision from the job details API.
+The developer example stores fine-tuned models using a predictable naming convention. However, you should always get the exact model name and revision from the job details API.
 
 **Model Name Pattern**: `customized-{original-model-name}`
 
@@ -54,7 +54,7 @@ Examples:
 - Original: `meta/llama-3.2-1b-instruct` → Fine-tuned: `customized-meta-llama-3.2-1b-instruct`
 - Original: `meta/llama-3.1-8b-instruct` → Fine-tuned: `customized-meta-llama-3.1-8b-instruct`
 
-**Full Model Identifier Format**: The actual model identifier in DFWBP includes the namespace and revision:
+**Full Model Identifier Format**: The actual model identifier includes the namespace and revision:
 ```
 dfwbp/customized-meta-llama-3.2-1b-instruct@cust-DbcC6k3UH3iDhfnhats9ZP
 ```
@@ -64,7 +64,7 @@ Where:
 - `customized-meta-llama-3.2-1b-instruct` is the model name
 - `cust-DbcC6k3UH3iDhfnhats9ZP` is the auto-generated revision
 
-**Namespace**: DFWBP stores models in the `dfwbp` namespace by default (configurable via `nmp_namespace` in DFWBP configuration). The namespace is included in the `customized_model` field returned by the job details API.
+**Namespace**: flywheel stores models in the `dfwbp` namespace by default (configurable via `nmp_namespace` in flywheel configuration). The namespace is included in the `customized_model` field returned by the job details API.
 
 **Source**: `src/tasks/tasks.py:790`
 
@@ -74,14 +74,14 @@ output_model_name = f"customized-{target_llm_model}".replace("/", "-")
 
 ## 4. Get the Model Revision from Job Details
 
-Before downloading, you need to get the exact model revision from your DFWBP job. The revision is generated automatically during fine-tuning and is required for downloading.
+Before downloading, you need to get the exact model revision from your job. The revision is generated automatically during fine-tuning and is required for downloading.
 
 ### Get Job Details
 
 Call the job details API to retrieve your customized model information:
 
 ```bash
-# Replace {job_id} with your actual DFWBP job ID
+# Replace {job_id} with your actual job ID
 JOB_ID="your_job_id_here"
 curl -X GET "http://your-dfwbp-api-url/jobs/$JOB_ID"
 ```
@@ -226,16 +226,16 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 
 1. **Authentication Errors**
    - Verify your `HF_TOKEN` is correct and has proper permissions
-   - Ensure the token matches the one used in your DFWBP deployment
+   - Ensure the token matches the one used in your deployment
 
 2. **Model Not Found**
    - Ensure you're using the exact `customized_model` value from the job details API response
-   - Verify the model training completed successfully in DFWBP
+   - Verify the model training completed successfully
    - Check that you've correctly parsed the namespace, model name, and revision from the API response
 
 3. **Download Failures**
    - Verify the datastore endpoint URL is correct and accessible
-   - Check network connectivity to the DFWBP datastore
+   - Check network connectivity to the datastore
    - Ensure the model revision is correct (get it from the job details API)
 
 4. **NIM Deployment Issues**
@@ -296,6 +296,6 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 ## Related Documentation
 
 - [Configuration Guide](03-configuration.md) - LoRA training configuration and parameters
-- [Quickstart Guide](02-quickstart.md) - Complete DFWBP workflow including LoRA fine-tuning
+- [Quickstart Guide](02-quickstart.md) - Complete workflow including LoRA fine-tuning
 - [Architecture Overview](01-architecture.md) - System design and data flow
 - [NVIDIA NIM Documentation](https://docs.nvidia.com/nim/) - Official NIM deployment guides

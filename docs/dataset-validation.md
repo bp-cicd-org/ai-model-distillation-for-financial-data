@@ -1,6 +1,6 @@
 # Dataset Validation
 
-Learn about the data validation process used by the Data Flywheel Foundational Blueprint. This validation process ensures that all data follows the OpenAI Chat Completion format and meets quality standards before being used for training or evaluation.
+Learn about the data validation process used by the developer example. This validation process ensures that all data follows the OpenAI Chat Completion format and meets quality standards before being used for training or evaluation.
 
 ## Validation Flow Diagram
 
@@ -42,24 +42,6 @@ Learn about the data validation process used by the Data Flywheel Foundational B
 │ Based on Workload Type  │
 └─────────────────────────┘
             │
-     ┌──────┴──────┐
-     │             │
-TOOL_CALLING    GENERIC
-     │             │
-     ▼             ▼
-┌─────────────┐ ┌─────────────┐
-│ Validate:   │ │ No Special  │
-│ - Has tool  │ │ Validation  │
-│   calls     │ │             │
-│ - Valid     │ │             │
-│   function  │ │             │
-│   args JSON │ │             │
-│ - Parse     │ │             │
-│   args to   │ │             │
-│   objects   │ │             │
-└─────────────┘ └─────────────┘
-     │             │
-     └──────┬──────┘
             ▼
 ┌─────────────────────────┐
 │  Remove Duplicates      │
@@ -114,18 +96,7 @@ The validator checks for a complete OpenAI format structure:
 
 ### 3. Quality Filters
 
-Based on workload type:
-
-#### Tool Calling Workloads
-
-- Record must have tool calls in response
-- **Tool Properties Limit**: Tool function parameter definitions are limited to a maximum of 8 properties (for known NIM bug)
-- Function arguments must be valid JSON
-- Arguments are parsed from strings to JSON objects
-
-#### Generic Workloads
-
-- No special validation required
+Quality filters are applied based on workload type to ensure data meets specific requirements for training and evaluation.
 
 ### 4. Deduplication
 
@@ -201,7 +172,6 @@ The validation is implemented in two classes:
 1. **OpenAIFormatValidator**: Validates the OpenAI Chat Completion format
    - Validates the request and response structure
    - Checks message roles and content
-   - Validates tool calls if present
    - Applies workload-specific quality filters
 
 2. **DataValidator**: Orchestrates the validation process
@@ -219,7 +189,7 @@ from src.api.models import WorkloadClassification
 validator = DataValidator()
 validated_records = validator.validate_records(
     records=raw_records,
-    workload_type=WorkloadClassification.TOOL_CALLING,
+    workload_type=WorkloadClassification.GENERIC,
     limit=1000,
     min_total_records=50
 )
