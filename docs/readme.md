@@ -1,6 +1,6 @@
 # AI Model Distillation for Financial Data Developer Example Documentation
 
-Welcome to the AI Model Distillation for Financial Data Developer Example documentation! This guide helps you navigate our comprehensive documentation to find exactly what you need.
+Welcome to the AI Model Distillation for Financial Data developer example documentation! This guide helps you navigate our comprehensive documentation to find exactly what you need.
 
 ## 🚀 Quick Start Paths
 

@@ -22,7 +22,7 @@ graph TD
 ## Task Definitions and Dependencies
 
 ### 1. **`initialize_workflow`**
-**Purpose**: Sets up the flywheel run, validates configuration, and prepares the job for execution.
+**Purpose**: Sets up the job run, validates configuration, and prepares the job for execution.
 
 **Source**: `src/tasks/tasks.py:104`
 

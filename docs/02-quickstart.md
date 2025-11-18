@@ -1,6 +1,6 @@
-# Getting Started With AI Model Distillation for Financial Data Developer Example
+# Quickstart Guide
 
-Learn how to set up and deploy the AI Model Distillation for Financial Data Developer Example using the steps in this guide.
+Learn how to set up and deploy the AI Model Distillation for Financial Data developer example using the steps in this guide.
 
 This quickstart provides an initial news headlines dataset to help you get started working with the services.
 
@@ -121,8 +121,6 @@ The developer example uses a configuration file (`config/config.yaml`) that defi
 - **Model Deployments**: All candidate models (NIMs) are deployed locally in your cluster for evaluation and customization
 - **Evaluation Settings**: Controls how models are evaluated, including stratified data splitting and f1-score
 - **Training Parameters**: Defines fine-tuning settings for model customization
-
-> **Important:** After starting the flywheel services, wait 4-5 minutes for all deployments to be ready before starting your first job. This delay is normal during the initialization phase as the system sets up model deployments and services.
 
 > **📖 For complete configuration details:** See the [Configuration Guide](03-configuration.md)
 
@@ -304,7 +302,7 @@ Now that you've got the developer example running and loaded with data, you can 
 
 ### Quick Start Example
 
-> **Important:** After starting theflywheel services, wait 4-5 minutes for all deployments to be ready before starting your first job. This delay is normal during the initialization phase as the system sets up model deployments and services.
+> **Important:** After starting the services, wait 4-5 minutes for all deployments to be ready before starting your first job. This delay is normal during the initialization phase as the system sets up model deployments and services.
 
 #### Start Job
 
@@ -412,4 +410,4 @@ If you encounter any issues:
 
 ## Next Steps
 
-Learn how to deploy the AI Model Distillation for Financial Data Developer Example on Kubernetes using Helm charts for scalable, production-ready environments by following the [Helm Install Guide](11-helm-installation.md).
+Learn how to deploy the AI Model Distillation for Financial Data developer example on Kubernetes using Helm charts for scalable, production-ready environments by following the [Helm Install Guide](11-helm-installation.md).

@@ -1,6 +1,6 @@
 # AI Model Distillation for Financial Data Developer Example Overview
 
-## Core Components Required for a Flywheel
+## Core Components Required for a flywheel
 
 1. **Instrumented Gen-AI Application**: Your service must tag distinct workloads (routes, nodes, agent steps) and log every prompt/completion pair.
 2. **Log Store**: Elasticsearch (or equivalent) captures production traffic so datasets can be built automatically.
