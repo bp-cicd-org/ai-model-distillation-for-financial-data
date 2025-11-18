@@ -1,8 +1,8 @@
-# Getting Started With Data Flywheel Blueprint
+# Getting Started With AI Model Distillation for Financial Data Developer Example
 
-Learn how to set up and deploy the Data Flywheel Blueprint using the steps in this guide.
+Learn how to set up and deploy the AI Model Distillation for Financial Data Developer Example using the steps in this guide.
 
-This quickstart provides an initial [News headlines dataset](../data/news_classification/news-classifier-1000_dataset.jsonl) to help you get started working with the services.
+This quickstart provides an initial news headlines dataset to help you get started working with the services.
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ This quickstart provides an initial [News headlines dataset](../data/news_classi
 | Minimum GPU | 2× (NVIDIA A100/H100/H200/B200 GPUs) |
 | Cluster | Single-node NVIDIA GPU cluster on Linux with cluster-admin permissions |
 | Disk Space | At least 200 GB free |
-| Software | Python 3.12<br>Docker Engine<br>Docker Compose v2 |
+| Software | Elasticsearch 8.12.2<br>MongoDB 7.0<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing)<br>MLflow 2.22.0<br>Wandb 0.22.3 |
 
 > **📖 For complete system requirements:** See [System Requirements](03-configuration.md#system-requirements)
 
@@ -53,7 +53,7 @@ Authenticate with NGC using `NGC login`. For detailed instructions, see the [NGC
 To deploy NMP, follow the [NeMo Microservices Platform Prerequisites](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/index.html) beginner tutorial. These instructions launch NMP using a local Minikube cluster.
 
 > **Note**
-> Data Flywheel Blueprint has been tested and is compatible with NeMo Microservices Platform (NMP) version 25.8.0.
+> Data Flywheel Blueprint, on which the AI Model Distillation for Financial Data Developer Example is developed, has been tested and is compatible with NeMo Microservices Platform (NMP) version 25.8.0.
 
 **Use Manual Installation Only**
 
@@ -65,7 +65,7 @@ For the Data Flywheel Blueprint, use the [Install Manually](https://docs.nvidia.
 Due to Bitnami making PostgreSQL images private, you need to use an [override values file](../deploy/override-values.yaml) as a workaround when deploying NMP 25.8.0.
 
 > **Note**
-> This is a temporary workaround to resolve the Bitnami PostgreSQL image issue until a new NMP release is tested with the Data Flywheel Blueprint.
+> This is a temporary workaround to resolve the Bitnami PostgreSQL image issue until a new NMP release is tested with the developer example.
 
 **Enable Customization for Models**
 
@@ -108,21 +108,21 @@ helm --namespace default install \
 ```
 
 > **Important**
-> The Data Flywheel Blueprint automatically manages model deployment—spinning up or down models in the configured namespace. You don't need to intervene manually. The blueprint manages all aspects of the model lifecycle within the configured namespace.
+> The developer example automatically manages model deployment—spinning up or down models in the configured namespace. You don't need to intervene manually. The example manages all aspects of the model lifecycle within the configured namespace.
 
-### 3. Configure Data Flywheel
+### 3. Configure developer example
 
 Before setting up environment variables, it's important to understand the key configuration concepts:
 
 #### Configuration Overview
 
-The Data Flywheel Blueprint uses a configuration file (`config/config.yaml`) that defines:
+The developer example uses a configuration file (`config/config.yaml`) that defines:
 
 - **Model Deployments**: All candidate models (NIMs) are deployed locally in your cluster for evaluation and customization
 - **Evaluation Settings**: Controls how models are evaluated, including stratified data splitting and f1-score
 - **Training Parameters**: Defines fine-tuning settings for model customization
 
-> **Important:** After starting the Data Flywheel services, wait 4-5 minutes for all deployments to be ready before starting your first job. This delay is normal during the initialization phase as the system sets up model deployments and services.
+> **Important:** After starting the flywheel services, wait 4-5 minutes for all deployments to be ready before starting your first job. This delay is normal during the initialization phase as the system sets up model deployments and services.
 
 > **📖 For complete configuration details:** See the [Configuration Guide](03-configuration.md)
 
@@ -149,8 +149,8 @@ The Data Flywheel Blueprint uses a configuration file (`config/config.yaml`) tha
 2. Clone the repository:
 
    ```bash
-   git clone https://github.com/NVIDIA-AI-Blueprints/data-flywheel.git
-   cd data-flywheel
+   git clone https://github.com/NVIDIA-AI-Blueprints/ai-model-distillation-for-financial-data.git
+   cd ai-model-distillation-for-financial-data
    git checkout main
    ```
 
@@ -217,10 +217,6 @@ You have several options to start the services:
    # Hugging Face token for data uploading
    HF_TOKEN=hf_your-huggingface-token-here
    
-   # Optional: Override API keys for specific services
-   LLM_JUDGE_API_KEY=your-custom-llm-judge-api-key
-   EMB_API_KEY=your-custom-embedding-api-key
-   
    # Docker Compose profiles (enable MLflow)
    COMPOSE_PROFILES=mlflow
    
@@ -244,31 +240,18 @@ You have several options to start the services:
 
 4. **Production Deployment:** Use Helm for Kubernetes deployment:
 
-   For production environments or Kubernetes-based deployments, you can use Helm to deploy the Data Flywheel Blueprint.
+   For production environments or Kubernetes-based deployments, you can use Helm to deploy the developer example.
 
    > **📖 For complete Helm deployment instructions:** See [Helm Installation Guide](11-helm-installation.md)
 
 ### 5. Load Data
 
-You can feed data to the Flywheel in two ways:
+You can feed data to the developer example in two ways:
 
 1. **Manually:** For demo or short-lived environments, use the provided `load_test_data.py` script.
-2. **Automatically:** For production environments where you deploy the blueprint to run continuously, use a [continuous log exportation flow](./01-architecture.md#how-production-logs-flow-into-the-flywheel). For production deployment setup, see the [Helm Installation Guide](11-helm-installation.md).
+2. **Automatically:** For production environments where you deploy the developer example to run continuously, use a [continuous log exportation flow](./01-architecture.md#how-production-logs-flow-into-the-system). For production deployment setup, see the [Helm Installation Guide](11-helm-installation.md).
 
 > **📖 For complete implementation guide:** See [Data Logging for AI Apps](data-logging.md)
-
-Use the provided script and demo datasets to quickly experience the value of the Flywheel service.
-
-#### Demo Dataset
-
-Load test data using the provided scripts:
-
-##### AIVA Dataset
-
-```bash
-uv run python src/scripts/load_test_data.py \
-  --file aiva_primary_assistant_dataset.jsonl
-```
 
 #### Custom Data
 
@@ -277,58 +260,36 @@ To submit your own custom dataset, provide the loader with a file in [JSON Lines
 #### Example Entry
 
 ```json
-{"messages": [
-  {"role": "user", "content": "Describe your issue here."},
-  {"role": "assistant", "content": "Assistant's response goes here."}
-]}
-```
-
-#### Example with Tool Calling
-
-```json
 {
   "request": {
-    "model": "meta/llama-3.1-70b-instruct", 
+    "model": "meta/llama-3.3-70b-instruct",
     "messages": [
-      {"role": "system", "content": "You are a chatbot that helps with purchase history."},
-      {"role": "user", "content": "Has my bill been processed?"}
-    ],
-    "tools": [
       {
-        "type": "function",
-        "function": {
-          "name": "structured_rag",
-          "parameters": {
-            "properties": {
-              "query": {"type": "string"},
-              "user_id": {"type": "string"}
-            },
-            "required": ["query", "user_id"]
-          }
-        }
+        "role": "system",
+        "content": "You are a financial news classifier."
+      },
+      {
+        "role": "user",
+        "content": "USER PROMPT"
       }
     ]
   },
   "response": {
-    "choices": [{
-      "message": {
-        "role": "assistant",
-        "content": "",
-        "tool_calls": [{
-          "type": "function",
-          "function": {
-            "name": "structured_rag",
-            "arguments": {"query": "account bill processed", "user_id": "4165"}
-          }
-        }]
+    "choices": [
+      {
+        "message": {
+          "role": "assistant",
+          "content": "[[[analyst rating]]]"
+        }
       }
-    }]
+    ]
   },
-  "workload_id": "primary_assistant",
-  "client_id": "aiva-1",
-  "timestamp": 1746138417
+  "workload_id": "news_classifier",
+  "client_id": "<DATASET ID>", # dataset identifier in the flywheel server
+  "timestamp": 1760845128 #timestamp when dataset was last updated
 }
 ```
+
 
 Each line in your dataset file should follow this structure, which is compatible with the OpenAI API request and response format.
 
@@ -339,18 +300,18 @@ Each line in your dataset file should follow this structure, which is compatible
 
 ## Job Operations
 
-Now that you've got the Data Flywheel running and loaded with data, you can start running jobs.
+Now that you've got the developer example running and loaded with data, you can start running jobs.
 
 ### Quick Start Example
 
-> **Important:** After starting the Data Flywheel services, wait 4-5 minutes for all deployments to be ready before starting your first job. This delay is normal during the initialization phase as the system sets up model deployments and services.
+> **Important:** After starting theflywheel services, wait 4-5 minutes for all deployments to be ready before starting your first job. This delay is normal during the initialization phase as the system sets up model deployments and services.
 
 #### Start Job
 
 ```bash
 curl -X POST http://localhost:8000/api/jobs \
 -H "Content-Type: application/json" \
--d '{"workload_id": "primary_assistant", "client_id": "aiva-1"}'
+-d '{"workload_id": "news_classifier", "client_id": "<DATASET ID>", # dataset identifier in the flywheel server}'
 ```
 
 #### Check Job Status
@@ -384,9 +345,9 @@ curl -X GET http://localhost:8000/api/jobs/:job-id -H "Content-Type: application
 
 2. Access Jupyter Lab in your browser at `http://<your-host-ip>:8889`.
 3. Navigate to the `notebooks` directory.
-4. Open the example notebook for running and monitoring jobs: [data-flywheel-bp-tutorial.ipynb](../notebooks/data-flywheel-bp-tutorial.ipynb)
+4. Open the example notebook for running and monitoring jobs: [ai-model-distillation-financial-data.ipynb](../notebooks/ai-model-distillation-financial-data.ipynb)
 
-Follow the instructions in the Jupyter Lab notebook to interact with the Data Flywheel services.
+Follow the instructions in the Jupyter Lab notebook to interact with the developer example.
 
 ## Evaluate Results
 
@@ -394,7 +355,7 @@ Follow the instructions in the Jupyter Lab notebook to interact with the Data Fl
 
 ## Cleanup
 
-### 1. Data Flywheel Services
+### 1. Developer Example
 
 When you're done using the services, you can stop them using the stop script:
 
@@ -412,12 +373,11 @@ The system automatically cleans up running resources through the `CleanupManager
 - The system is restarted
 
 The `CleanupManager` automatically:
-1. **Finds all running flywheel runs** from the database with `PENDING` or `RUNNING` status
-2. **Identifies running NIMs** with `RUNNING` deployment status for each flywheel run
+1. **Finds all running jobs** from the database with `PENDING` or `RUNNING` status
+2. **Identifies running NIMs** with `RUNNING` deployment status for each job
 3. **Cancels active customization jobs** for each running NIM
 4. **Shuts down NIM deployments** using the DMS client
-5. **Shuts down LLM judge deployments** (if running locally)
-6. **Marks all resources as cancelled** in the database with appropriate error messages
+5. **Marks all resources as cancelled** in the database with appropriate error messages
 
 The cleanup is triggered by the `worker_shutting_down` signal in the Celery worker, ensuring that all resources are properly cleaned up even during unexpected shutdowns.
 
@@ -448,8 +408,8 @@ If you encounter any issues:
 
 ## Additional Resources
 
-- [Data Flywheel Blueprint Repository](https://github.com/NVIDIA-AI-Blueprints/data-flywheel)
+- [AI Model Distillation for Financial Data Developer Example Repository](https://github.com/NVIDIA-AI-Blueprints/ai-model-distillation-for-financial-data)
 
 ## Next Steps
 
-Learn how to deploy the Data Flywheel Blueprint on Kubernetes using Helm charts for scalable, production-ready environments by following the [Helm Install Guide](11-helm-installation.md).
+Learn how to deploy the AI Model Distillation for Financial Data Developer Example on Kubernetes using Helm charts for scalable, production-ready environments by following the [Helm Install Guide](11-helm-installation.md).

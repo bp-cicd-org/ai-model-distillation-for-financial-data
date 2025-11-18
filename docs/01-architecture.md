@@ -1,23 +1,23 @@
-# Flywheel Architecture Overview
+# AI Model Distillation for Financial Data Developer Example Overview
 
 ## Core Components Required for a Flywheel
 
 1. **Instrumented Gen-AI Application**: Your service must tag distinct workloads (routes, nodes, agent steps) and log every prompt/completion pair.
 2. **Log Store**: Elasticsearch (or equivalent) captures production traffic so datasets can be built automatically.
-3. **Dataset & Model Ops Infra**: The blueprint spins up NeMo Datastore, Evaluator, Customizer, plus local API & workers to orchestrate jobs.
+3. **Dataset & Model Ops Infra**: The developer example spins up NeMo Datastore, Evaluator, Customizer, plus local API & workers to orchestrate jobs.
 4. **Post-Eval Human Review**: Engineers/researchers validate promising models before promotion; no user feedback collection.
 
 Think of this flywheel as a discovery and promotion service that surfaces promising smaller models rather than a fully autonomous replacement engine.
 
-## Data Flywheel Blueprint Architecture Diagram
+## AI Model Distillation for Financial Data Architecture Diagram
 
-The following diagram illustrates the high-level architecture of the Data Flywheel Blueprint:
+The following diagram illustrates the high-level architecture of the developer example:
 
-![Data Flywheel Blueprint Architecture](../docs/images/data-flywheel-blueprint.png)
+![AI Model Distillation for Financial Data Architecture](../docs/images/ai-model-dist-financial-data-arch.jpeg)
 
 > **Note**
 >
-> Version 1 of the Data Flywheel Foundational Blueprint optimizes **cost & latency** via model distillation. Future versions will target **absolute accuracy gains** and **agentic observability** (prompt / template suggestions).
+> Version 1 of the developer example optimizes **cost & latency** via model distillation. 
 
 ### How Production Logs Flow Into the Flywheel
 
@@ -56,8 +56,7 @@ sequenceDiagram
         Worker ->> customizer: Fine tune NIM
 
         Worker->> eval: Base evaluation
-        Worker->> eval: ICL evaluation
-        Worker->> eval: FT eval
+        Worker->> eval: Customization eval
 
         Worker->>API: Work
     end
@@ -69,11 +68,11 @@ sequenceDiagram
 ```mermaid
 flowchart TD
 
-    subgraph ex["Example Application<br>e.g. AIVA"]
-        subgraph AIVA
-            agent["Agent Node"]
-            LLM
-            Exporter
+    subgraph ex["Example Application"]
+        subgraph app["Application Components"]
+            agent["Application Logic"]
+            LLM["LLM Integration"]
+            Exporter["Data Exporter"]
 
             agent --> LLM
             agent --> Exporter
@@ -110,19 +109,18 @@ flowchart TD
 
 ## Automatic Resource Cleanup
 
-The Data Flywheel Blueprint includes an **automatic cleanup system** that ensures proper resource management when the system is shut down unexpectedly or when workers are terminated. This prevents resource leaks and ensures clean system state.
+The AI Model Distillation for Financial Data developer example includes an **automatic cleanup system** that ensures proper resource management when the system is shut down unexpectedly or when workers are terminated. This prevents resource leaks and ensures clean system state.
 
 ### How Automatic Cleanup Works
 
 The `CleanupManager` automatically activates during worker shutdown and performs the following operations:
 
-1. **Detects running resources**: Finds all flywheel runs with `PENDING` or `RUNNING` status
+1. **Detects running resources**: Finds all jobs with `PENDING` or `RUNNING` status
 2. **Identifies active NIMs**: Locates all NVIDIA Inference Microservices with `RUNNING` deployment status
 3. **Cancels running jobs**: 
    - Cancels active customization jobs through NeMo Customizer
 4. **Shuts down deployments**: 
    - Stops all running NIM deployments via NeMo Deployment Manager
-   - Shuts down local LLM judge deployments (remote judges are unaffected)
 5. **Updates database state**: Marks all resources as `CANCELLED` with appropriate timestamps and error messages
 
 ### When Automatic Cleanup Triggers

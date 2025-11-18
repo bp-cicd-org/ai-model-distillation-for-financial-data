@@ -1,6 +1,6 @@
 # Data Logging for AI Apps
 
-Instrumenting your AI application to log interactions is a critical step in implementing the Data Flywheel. This guide explains how to enable data logging for any AI app, providing a general approach and best practices. A working example using an [AI Virtual Assistant (AIVA)](https://github.com/NVIDIA-AI-Blueprints/ai-virtual-assistant) is included for reference.
+Instrumenting your AI application to log interactions is a critical step in implementing the developer example. This guide explains how to enable data logging for any AI app, providing a general approach and best practices. 
 
 ## General Approach and Requirements
 
@@ -36,7 +36,7 @@ Log entries should include:
 
 ### Direct Elasticsearch Integration (Recommended)
 
-The Data Flywheel Blueprint uses direct Elasticsearch integration for logging. Here's a practical example:
+The developer example uses direct Elasticsearch integration for logging. Here's a practical example:
 
 ```python
 import os
@@ -107,13 +107,9 @@ log_chat(WORKLOADS["tool_router"], messages_tool)
 3. Structure the data according to the required schema with `workload_id` and `client_id`.
 4. Index the log entry to Elasticsearch.
 
-## Example: Instrumenting AIVA
+## Configuration
 
-This section provides a practical example of instrumenting an [AI Virtual Assistant (AIVA)](https://github.com/NVIDIA-AI-Blueprints/ai-virtual-assistant) application to log data for the Data Flywheel. It extends the general guidelines presented in the ["Instrumenting an application"](../README.md#2instrumenting-an-application) section of the main README.
-
-### Configuration
-
-To enable data logging to Elasticsearch for AIVA, configure the following environment variables:
+To enable data logging to Elasticsearch, configure the following environment variables:
 
 ```sh
 ELASTICSEARCH_URL=http://your-elasticsearch-host:9200
@@ -140,14 +136,14 @@ The log entries stored in Elasticsearch contain the following structure:
     "usage": {"prompt_tokens": 50, "completion_tokens": 120, "total_tokens": 170}
   },
   "timestamp": 1715854074,
-  "client_id": "aiva",
+  "client_id": "your_app",
   "workload_id": "session_id"
 }
 ```
 
 ### Implementation Architecture
 
-The Data Flywheel system includes several components for data management:
+The developer example system includes several components for data management:
 
 1. **Elasticsearch Client**: Handles connections and indexing (`src/lib/integration/es_client.py`)
 2. **Record Exporter**: Retrieves logged data for processing (`src/lib/integration/record_exporter.py`)
@@ -223,58 +219,6 @@ def load_data_to_elasticsearch(
     es.indices.refresh(index=index_name)
 ```
 
-#### AIVA Data Transformation
-
-For AIVA-specific data transformation, the system provides a transformation script:
-
-```python
-# From src/scripts/aiva.py - Transform AIVA conversation data to Data Flywheel format
-import json
-import time
-
-# Function name mapping for workload identification
-function_name_mapping = {}
-for record in records:
-    tools = record.get("tools", [])
-    function_names = sorted(tool.get("function", {}).get("name", "wat") for tool in tools)
-    function_names_str = ",".join(function_names)
-    if function_names_str in function_name_mapping:
-        function_name_mapping[function_names_str] += 1
-    else:
-        function_name_mapping[function_names_str] = 1
-
-# Assign unique workload_id to each function_names_str
-function_name_to_workload_id = {}
-for idx, fnames in enumerate(function_name_mapping.keys()):
-    function_name_to_workload_id[fnames] = f"aiva_{idx+1}"
-
-# Transform each record to Data Flywheel format
-final_dataset = []
-for rec in final_records:
-    # Build OpenAI-compatible request/response format
-    request = {
-        "model": "meta/llama-3.1-70b-instruct",
-        "messages": [rec["system_prompt"], rec["first_user_message"]],
-        "tools": rec["tools"],
-    }
-    
-    response = {"choices": [{"message": rec["response"]}]}
-    
-    # Determine workload_id based on tool function names
-    function_names = sorted(tool.get("function", {}).get("name", "wat") for tool in rec["tools"])
-    function_names_str = ",".join(function_names)
-    workload_id = function_name_to_workload_id.get(function_names_str, "unknown")
-    
-    new_entry = {
-        "request": request,
-        "response": response,
-        "workload_id": workload_id,
-        "client_id": "dev",
-        "timestamp": int(time.time()),
-    }
-    final_dataset.append(new_entry)
-```
-
 ### Dependencies
 
 - `elasticsearch==8.17.2`
@@ -293,13 +237,13 @@ for rec in final_records:
 The system includes built-in data validation to ensure quality:
 
 - **OpenAI Format Validation**: Ensures proper request/response structure
-- **Workload Type Detection**: Automatically identifies tool-calling vs. generic conversations
+- **Workload Type Detection**: Automatically identifies workload types
 - **Deduplication**: Removes duplicate entries based on user queries
 - **Quality Filters**: Applies workload-specific quality checks
 
-## Integration with Data Flywheel
+## Integration with developer example
 
-Once data is logged to Elasticsearch, the Data Flywheel can:
+Once data is logged to Elasticsearch, the developer example can:
 
 1. **Export Records**: Use `RecordExporter` to retrieve data for processing
 2. **Validate Data**: Apply quality filters and format validation
@@ -315,4 +259,3 @@ Once data is logged to Elasticsearch, the Data Flywheel can:
   - `src/lib/integration/es_client.py` - Elasticsearch integration
   - `src/lib/integration/record_exporter.py` - Data retrieval
   - `src/scripts/load_test_data.py` - Data loading utilities
-  - `src/scripts/aiva.py` - AIVA data transformation examples 

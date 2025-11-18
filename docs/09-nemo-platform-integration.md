@@ -1,16 +1,14 @@
 # NeMo Platform Integration Deep Dive
 
-Learn how to leverage advanced NeMo Microservices Platform capabilities for model customization, evaluation, and deployment within the Data Flywheel Blueprint.
+Learn how to leverage advanced NeMo Microservices Platform capabilities for model customization, evaluation, and deployment within the developer example.
 
 ## NeMo Services Integration Overview
 
-The Data Flywheel Blueprint integrates with five core NeMo services:
+The developer example integrates with five core NeMo services:
 
 - **NeMo Customizer**: Fine-tuning and model adaptation
 - **NeMo Evaluator**: Comprehensive model evaluation  
 - **NeMo Deployment Manager (DMS)**: Model deployment and serving
-- **NeMo Data Service**: Dataset management and storage
-- **NeMo Embedding Service**: Text embedding generation and similarity operations
 
 ### Service Configuration
 
@@ -127,73 +125,6 @@ def start_training_job(
 
 The Evaluator service provides comprehensive model assessment capabilities with multiple evaluation types and metrics.
 
-### Evaluation Configuration
-
-**LLM-as-Judge Setup**:
-```python
-class Evaluator:
-    def __init__(
-        self,
-        judge_model_config: Any | None = None,
-        include_tools: bool = False,
-        include_tool_choice: bool = False,
-        include_nvext: bool = False,
-    ):
-        """Initialize evaluator with judge model configuration."""
-        self.nemo_url = settings.nmp_config.nemo_base_url
-        assert self.nemo_url, "nemo_base_url must be set in config"
-        self.namespace = settings.nmp_config.nmp_namespace
-```
-
-### Evaluation Types Implementation
-
-#### 1. **Accuracy Evaluation (LLM-as-Judge)**
-
-**Judge Prompt System**:
-```python
-JUDGE_SYSTEM_PROMPT = """You are an expert evaluator.
-Read the task, reference answer, and candidate answer.
-Score similarity on a scale of 1 to 10 using this rubric:
-
-10 - Nearly identical meaning; wording differences only.
-8-9 - Same key info, maybe one minor detail off.
-6-7 - Rough overlap but missing or altering several points.
-4-5 - Some relation but wrong on most core content.
-2-3 - Largely irrelevant or incorrect.
-1 - Completely irrelevant or empty.
-
-Return ONLY the integer (1-10). No other text."""
-```
-
-#### 2. **Tool Calling Evaluation**
-
-**Function Call Validation**:
-```python
-TOOL_CALLING_JUDGE_SYSTEM_PROMPT = """
-You are an expert evaluator. Your task is to compare two tool call objects: a ground truth and a prediction. Each object contains metadata about a function call, including the function name and its arguments. Your goal is to determine whether the predicted tool call is correct according to the following strict criteria:
-
-Evaluation Rules:
-
-1. If the prediction is null, empty, or structurally invalid, return a rating of 0.
-2. The prediction must include a valid `function.name` field that exactly matches the `function.name` in the ground truth.
-3. The prediction must include a `function.arguments` field containing a valid JSON object, or a string that can be parsed into one.
-4. Each argument key in the ground truth must also appear in the prediction and satisfy one of the following matching criteria:
-   - **Strict-match arguments**: These are typically short identifiers (e.g., user_id, product_id). They must match the ground truth exactly.
-   - **Semantic-match arguments**: These are typically longer, natural-language strings (e.g., queries, messages, questions). They should be semantically similar to the ground truth but may differ in wording.
-5. If any required argument is missing or fails to meet its matching criteria, the rating must be 0.
-6. Only return a rating of 1 if:
-   - The function name matches exactly, AND
-   - All required arguments are present and correctly matched (strict or semantic as appropriate).
-
-Assume you're familiar with typical tool function usage patterns and can infer which argument types require exact matching versus semantic similarity.
-
-Return your result in the following format:
-
-RATING: 0 or 1
-EXPLANATION: Explanation of the rating.
-"""
-```
-
 ### Evaluation Execution Patterns
 
 **Required Imports**:
@@ -220,41 +151,7 @@ def run_comprehensive_evaluation(nim_config: dict, datasets: dict, workload_type
     )
     eval_job_ids.append(job_id)
     
-    # ICL evaluation with examples  
-    job_id = evaluator.run_evaluation(
-        dataset_name=datasets["icl"],
-        workload_type=workload_type,
-        target_model=nim_config["model_name"],
-        test_file="eval_data.jsonl"
-    )
-    eval_job_ids.append(job_id)
-    
-    # Tool calling evaluation (if applicable)
-    if workload_type == WorkloadClassification.TOOL_CALLING:
-        job_id = evaluator.run_evaluation(
-            dataset_name=datasets["base"],
-            workload_type=workload_type,
-            target_model=nim_config["model_name"],
-            test_file="eval_data.jsonl",
-            tool_eval_type=ToolEvalType.TOOL_CALLING_METRIC
-        )
-        eval_job_ids.append(job_id)
-    
     return eval_job_ids
-```
-
-### LLM-as-Judge Service Integration
-
-**Source**: `src/lib/nemo/llm_as_judge.py:1-99`
-
-The LLM-as-Judge service provides automated evaluation capabilities using large language models as evaluators.
-
-**Judge Service Initialization**:
-```python
-from src.lib.nemo.llm_as_judge import LLMAsJudge
-
-judge = LLMAsJudge()
-# Uses settings.llm_judge_config for configuration
 ```
 
 ## NeMo Deployment Manager (DMS) Integration
@@ -270,8 +167,7 @@ The DMS client manages NVIDIA Inference Microservice (NIM) deployments for servi
 def deploy_model(self) -> dict[str, Any] | None:
     """Deploy a model using the DMS API."""
     
-    url = f"{self.nmp_config.nemo_base_url}/v1/deployment/model-deployments"
-    
+    url = f"{self.nmp_config.nemo_base_url}/v1/deployment/model-deployments"    
     payload = self.nim.to_dms_config()
     response = requests.post(url, json=payload)
     
@@ -505,30 +401,4 @@ def batch_evaluation_requests(items: list, batch_size: int = 32):
         yield run_evaluation_batch(batch)
 ```
 
-## NeMo Embedding Service Integration
-
-**Source**: `src/lib/nemo/embedding.py:1-94`
-
-The Embedding service provides text embedding generation capabilities for semantic similarity ICL example selection.
-
-**Embedding Service Usage**:
-```python
-from src.lib.nemo.embedding import Embedding
-
-# Initialize embedding service
-embedding_service = Embedding(
-    endpoint_url="http://nim.test/v1/embeddings",  # Uses nim_base_url from config
-    model_name="nvidia/llama-3.2-nv-embedqa-1b-v2",
-    api_key=None  # Optional API key for remote endpoint
-)
-
-# Get embeddings for single text or batch
-embeddings = embedding_service.get_embedding("Your text here", input_type="query")
-batch_embeddings = embedding_service.get_embeddings_batch(
-    ["text1", "text2", "text3"], 
-    input_type="passage",
-    batch_size=32
-)
-```
-
-This comprehensive integration guide enables advanced usage of NeMo services within the Data Flywheel Blueprint. For basic configuration, refer to the [Configuration Guide](./03-configuration.md). 
+This comprehensive integration guide enables advanced usage of NeMo services within the developer example. For basic configuration, refer to the [Configuration Guide](./03-configuration.md). 
