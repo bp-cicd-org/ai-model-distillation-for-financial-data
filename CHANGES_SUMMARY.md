@@ -61,7 +61,6 @@ else:
 - **Changed from**: Trying to access `llm-as-judge` task (which doesn't exist for classification workloads)
 - **Changed to**: Extract F1 score from `chat-completion` task
 - **Reason**: Classification workloads use F1 score for evaluation, not LLM-as-judge
-- **Note**: `WorkloadClassification.GENERIC` is a backward-compatibility alias for `WorkloadClassification.CLASSIFICATION`. Both map to `"classification"` in the configuration file.
 
 **src/lib/integration/mlflow_client.py**:
 - **Lines 220-224**: Changed task_key from `"llm-as-judge"` to `"chat-completion"` for classification workloads
