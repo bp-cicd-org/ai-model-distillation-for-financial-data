@@ -15,6 +15,7 @@ NAMESPACE="default"
 REQUIRED_DISK_GB=200
 REQUIRED_GPUS=2
 NGC_API_KEY="${NGC_API_KEY:-}"
+WANDB_API_KEY="${WANDB_API_KEY:-}"
 HELM_CHART_REPO="nemo-microservices/nemo-microservices-helm-chart"
 HELM_CHART_VERSION="25.10.0"  # Empty string means use latest version
 ADDITIONAL_VALUES_FILES=(demo-values.yaml)
@@ -622,19 +623,19 @@ setup_ngc_and_helm() {
   kubectl create secret generic ngc-api \
     --from-literal=NGC_API_KEY="$NGC_API_KEY"
 
-  # Setup W&B if API key is present
+  # Setup W&B secret (always create it, even if empty)
   if [[ -n "$WANDB_API_KEY" ]]; then
     log "WANDB_API_KEY detected - configuring Weights & Biases..."
-    kubectl create secret generic wandb-api-key \
-      --from-literal=api-key="$WANDB_API_KEY" \
-      -n "$NAMESPACE" \
-      --dry-run=client -o yaml | kubectl apply -f -
     log "W&B secret created. Training metrics will be logged to https://wandb.ai"
-    log "Note: wandb-secret will be finalized after Helm install completes"
   else
     log "WANDB_API_KEY not set - W&B logging disabled"
     log "To enable W&B: add WANDB_API_KEY to ~/.env"
   fi
+  
+  kubectl create secret generic wandb-api-key \
+    --from-literal=api-key="$WANDB_API_KEY" \
+    -n "$NAMESPACE" \
+    --dry-run=client -o yaml | kubectl apply -f -
 }
 
 # === Phase 3: Deploy Helm Chart ===
