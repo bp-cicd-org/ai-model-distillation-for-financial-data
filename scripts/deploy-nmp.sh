@@ -16,7 +16,7 @@ REQUIRED_DISK_GB=200
 REQUIRED_GPUS=2
 NGC_API_KEY="${NGC_API_KEY:-}"
 HELM_CHART_REPO="nemo-microservices/nemo-microservices-helm-chart"
-HELM_CHART_VERSION=""  # Empty string means use latest version
+HELM_CHART_VERSION="25.10.0"  # Empty string means use latest version
 ADDITIONAL_VALUES_FILES=(demo-values.yaml)
 
 # === Progress Bar Config ===
@@ -98,7 +98,13 @@ show_progress() {
 update_progress() {
   if [[ "$SHOW_PROGRESS_BAR" == "true" ]]; then
     CURRENT_STEP=$((CURRENT_STEP + 1))
-    show_progress "$CURRENT_STEP" "${STEP_DESCRIPTIONS[$((CURRENT_STEP - 1))]}"
+    # Ensure we have a valid index (CURRENT_STEP is now 1-based, array is 0-based)
+    local desc_index=$((CURRENT_STEP - 1))
+    if [[ $desc_index -ge 0 && $desc_index -lt ${#STEP_DESCRIPTIONS[@]} ]]; then
+      show_progress "$CURRENT_STEP" "${STEP_DESCRIPTIONS[$desc_index]}"
+    else
+      show_progress "$CURRENT_STEP" "Unknown step"
+    fi
   fi
 }
 
@@ -715,16 +721,16 @@ EOF
   fi
 
   # Build version argument if specified
-  local version_arg=""
+  local version_args=()
   if [[ -n "$HELM_CHART_VERSION" ]]; then
-    version_arg="--version $HELM_CHART_VERSION"
+    version_args=("--version" "$HELM_CHART_VERSION")
     log "Using Helm chart version: $HELM_CHART_VERSION"
   else
     log "Using latest Helm chart version"
   fi
 
   # Need to fetch and untar for the volcano installation
-  helm pull --untar "$HELM_CHART_REPO" $version_arg \
+  helm pull --untar "$HELM_CHART_REPO" "${version_args[@]}" \
       --username='$oauthtoken' \
       --password=$NGC_API_KEY
 }
@@ -747,12 +753,12 @@ install_nemo_microservices () {
   fi
 
   # Build version argument if specified
-  local version_arg=""
+  local version_args=()
   if [[ -n "$HELM_CHART_VERSION" ]]; then
-    version_arg="--version $HELM_CHART_VERSION"
+    version_args=("--version" "$HELM_CHART_VERSION")
   fi
 
-  helm install nemo "$HELM_CHART_REPO" $version_arg -f demo-values.yaml --namespace "$NAMESPACE" \
+  helm install nemo "$HELM_CHART_REPO" "${version_args[@]}" -f demo-values.yaml --namespace "$NAMESPACE" \
     --username='$oauthtoken' \
     --password=$NGC_API_KEY
 
