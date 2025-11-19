@@ -63,7 +63,6 @@ The AI Model Distillation for Financial Data developer example is a financial se
 
 > **Note:** This is a financial services-specific variant of the Data Flywheel Blueprint, configured for classification workloads with F1-score evaluation.
 
-> **Note:** This is the financial services variant configured for classification workloads.
 
 For the Data Flywheel Blueprint, use the [Install Manually](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/minikube-manual.html) option. The deployment scripts option should be avoided as it deploys models outside the namespace of the Data Flywheel and can cause conflict.
 
