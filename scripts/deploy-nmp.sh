@@ -1056,9 +1056,8 @@ main() {
   install_nemo_microservices
   restore_output
 
-  # Step 6: Install Kyverno for WandB injection (only if WANDB_API_KEY is set)
+  # Install Kyverno for WandB injection (optional, no progress update)
   if [[ -n "$WANDB_API_KEY" ]]; then
-    update_progress
     redirect_output
     install_kyverno
     restore_output
@@ -1066,7 +1065,7 @@ main() {
     log "WANDB_API_KEY not set - skipping Kyverno installation"
   fi
 
-  # Step 7: Wait for pods
+  # Step 6: Wait for pods
   update_progress
   redirect_output
   wait_for_pods
