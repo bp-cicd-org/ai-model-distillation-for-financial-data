@@ -328,7 +328,7 @@ You can swap Elasticsearch for another store; ensure `create_datasets` can retri
 
 Real-world tests within NVIDIA show **cost reductions of up to 98.6%** while maintaining comparable accuracy. Example: An internal HR chatbot using `llama-3.1-70b-instruct` for tool calling was able to replace it with a fine-tuned `llama-3.2-1b-instruct` achieving ~98% accuracy.
 
-**For financial services classification**: With sufficient training data (25,000 examples), student models (1B, 3B, 8B) achieve F1-scores of 0.90-0.95 relative to teacher models (49B, 70B), enabling significant cost savings while maintaining classification accuracy.
+**For financial services classification**: With sufficient training data (25,000 examples), student models (1B, 3B, 8B) achieve F1-scores of 0.90-0.95 relative to teacher models (70B), enabling significant cost savings while maintaining classification accuracy.
 
 ### Additional Reading
 
