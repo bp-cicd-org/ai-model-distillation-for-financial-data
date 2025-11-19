@@ -4,7 +4,7 @@ Learn how to deploy the AI Model Distillation for Financial Data developer examp
 
 ## Overview
 
-The AI Model Distillation for Financial Data developer exampleprovides a comprehensive Helm chart for Kubernetes deployment, enabling scalable data processing workflows with integrated NeMo microservices, experiment tracking, and monitoring capabilities.
+The AI Model Distillation for Financial Data developer example provides a comprehensive Helm chart for Kubernetes deployment, enabling scalable data processing workflows with integrated NeMo microservices, experiment tracking, and monitoring capabilities.
 
 ### What This Guide Covers
 
@@ -72,7 +72,9 @@ kubectl describe node $NODE | grep nvidia.com/gpu
 
 ## Configuration Overview
 
-The Data Flywheel Blueprint Helm chart uses a `values.yaml` file that defines all configuration options. This file must be updated with your specific settings before deployment:
+> **Note:** This is the financial services variant of the Data Flywheel Blueprint, configured for classification workloads with F1-score evaluation.
+
+The AI Model Distillation for Financial Data developer example Helm chart uses a `values.yaml` file that defines all configuration options. This file must be updated with your specific settings before deployment:
 
 - **Model Deployments**: All candidate models (NIMs) are deployed locally in your cluster for evaluation and customization
 - **LLM Judge**: Can be configured as either:
@@ -123,6 +125,15 @@ cd nvidia-blueprint-data-flywheel
 
 > **Note**: Skip this step if you downloaded the chart from NGC registry, as all sub-charts are included.
 
+**Helm Chart Management:**
+
+The developer example uses repository-based Helm chart fetching for NeMo microservices. This approach automatically uses the latest available chart version from the NGC repository, ensuring you have the most up-to-date components. You can optionally specify a specific version if needed.
+
+**Key Features:**
+- **Automatic Latest Version**: By default, the system fetches the latest Helm chart version from the NGC repository
+- **Version Override**: You can specify a specific chart version using the `--helm-chart-version` flag (for example, in `scripts/deploy-nmp.sh`)
+- **Repository-Based**: Charts are fetched from `nemo-microservices/nemo-microservices-helm-chart` repository
+
 Add required Helm repositories:
 
 ```bash
@@ -143,6 +154,8 @@ cd deploy/helm/data-flywheel
 # Update chart dependencies
 helm dependency update
 ```
+
+> **Note:** The deployment script (`scripts/deploy-nmp.sh`) automatically handles Helm chart fetching using repository-based methods. For manual deployments, ensure you've added the NeMo microservices repository and updated the repository indexes before installing charts.
 
 Verify dependencies are downloaded:
 

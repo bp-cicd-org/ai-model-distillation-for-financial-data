@@ -12,10 +12,12 @@ This quickstart provides an initial news headlines dataset to help you get start
 |-------------------------|---------|
 | Minimum GPU | 2× (NVIDIA A100/H100/H200/B200 GPUs) |
 | Cluster | Single-node NVIDIA GPU cluster on Linux with cluster-admin permissions |
-| Disk Space | At least 200 GB free |
+| Disk Space | At least 200 GB free (500 GB required for Minikube deployments) |
 | Software | Elasticsearch 8.12.2<br>MongoDB 7.0<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing)<br>MLflow 2.22.0<br>Wandb 0.22.3 |
 
 > **📖 For complete system requirements:** See [System Requirements](03-configuration.md#system-requirements)
+
+> **Note:** If you're deploying NMP using Minikube (as described in the [NeMo Microservices Platform Prerequisites](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/index.html)), Minikube requires 500 GB of disk space to handle large container images. The deployment script (`scripts/deploy-nmp.sh`) automatically configures this requirement.
 
 ### Obtain an NGC API Key and Log In
 
@@ -60,6 +62,8 @@ To deploy NMP, follow the [NeMo Microservices Platform Prerequisites](https://do
 The AI Model Distillation for Financial Data developer example is a financial services variant of the NVIDIA Data Flywheel Blueprint, adapted for financial news classification workloads. It demonstrates how NVIDIA technology enables continuous model fine-tuning and distillation, enabling integration into financial workflows.
 
 > **Note:** This is a financial services-specific variant of the Data Flywheel Blueprint, configured for classification workloads with F1-score evaluation.
+
+> **Note:** This is the financial services variant configured for classification workloads.
 
 For the Data Flywheel Blueprint, use the [Install Manually](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/minikube-manual.html) option. The deployment scripts option should be avoided as it deploys models outside the namespace of the Data Flywheel and can cause conflict.
 

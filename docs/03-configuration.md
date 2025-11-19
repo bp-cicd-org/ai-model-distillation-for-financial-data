@@ -59,7 +59,7 @@ Learn how to configure the AI Model Distillation for Financial Data Developer Ex
 |-------------------------|---------|
 | **Minimum GPU** | 2× (NVIDIA A100/H100/H200/B200 GPUs) |
 | **Cluster** | Single-node NVIDIA GPU cluster on Linux with cluster-admin permissions |
-| **Disk Space** | At least 200 GB free |
+| **Disk Space** | At least 200 GB free (500 GB required for Minikube deployments) |
 | **Software** | Python 3.10+<br>Docker Engine<br>Docker Compose v2 |
 | **Services** | Elasticsearch 8.12.2<br>MongoDB 7.0<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing)<br>MLflow 2.22.0<br>Wandb 0.22.3 |
 | **Resource** | **Minimum Memory**: 1 GB (512 MB reserved for Elasticsearch)<br>**Storage**: Varies by log volume or model size<br>**Network**: Ports 8000 (API), 9200 (Elasticsearch), 27017 (MongoDB), 6379 (Redis) |

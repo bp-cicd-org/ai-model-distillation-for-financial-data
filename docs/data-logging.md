@@ -133,6 +133,14 @@ The log entries stored in Elasticsearch contain the following structure:
     "id": "run_id",
     "object": "chat.completion",
     "model": "model_name",
+    "choices": [
+      {
+        "message": {
+          "role": "assistant",
+          "content": "[[[analyst rating]]]"
+        }
+      }
+    ],
     "usage": {"prompt_tokens": 50, "completion_tokens": 120, "total_tokens": 170}
   },
   "timestamp": 1715854074,
@@ -140,6 +148,39 @@ The log entries stored in Elasticsearch contain the following structure:
   "workload_id": "session_id"
 }
 ```
+
+### Classification Label Format
+
+For classification workloads (the default for this financial services variant), the system extracts classification labels from the response content using a specific format. Labels must be wrapped in double square brackets:
+
+**Format**: `[[label]]` or `[[[label]]]`
+
+**Examples:**
+- `[[analyst rating]]` - Single classification label
+- `[[[market analysis]]]` - Label with triple brackets (also supported)
+- `[[earnings report]]` - Another valid format
+
+**Important Notes:**
+- Labels are extracted using regex pattern `\[\[+(.+?)\]\]+`
+- Labels are normalized to lowercase for stratification
+- If no label is found, the system assigns `"unknown"` as the label
+- Labels are used for stratified data splitting to maintain class balance across training, validation, and evaluation datasets
+
+**Example Response Content:**
+```json
+{
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "Based on the financial data, this article is classified as: [[[market analysis]]]"
+      }
+    }
+  ]
+}
+```
+
+The system extracts `"market analysis"` as the classification label for this record.
 
 ### Implementation Architecture
 

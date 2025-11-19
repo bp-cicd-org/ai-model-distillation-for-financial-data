@@ -12,7 +12,7 @@ The AI Model Distillation for Financial Data developer example supports producti
 ```mermaid
 graph TB
     subgraph "Kubernetes Cluster"
-        subgraph "Data Flywheel Namespace"
+        subgraph "AI Model Distillation Namespace"
             API[API Server]
             CELERY[Celery Workers]
             FLOWER[Flower Monitor]

@@ -36,7 +36,7 @@ Creates a new flywheel job that runs the complete NIM workflow including data ex
 }
 ```
 
-> **Note:** The example above shows `eval_size: 100`, which matches the default in `config/config.yaml` for this financial services variant. If you omit `data_split_config` entirely, the service uses config file defaults (`eval_size: 100`). If you include `data_split_config` but omit fields, omitted fields use API schema defaults (`eval_size: 20`).
+> **Note:** This example demonstrates a financial news classification workload. The `workload_id` identifies the classification task (e.g., categorizing financial news articles), and `client_id` identifies the dataset source. The example shows `eval_size: 100`, which matches the default in `config/config.yaml` for this financial services variant. If you omit `data_split_config` entirely, the service uses config file defaults (`eval_size: 100`). If you include `data_split_config` but omit fields, omitted fields use API schema defaults (`eval_size: 20`).
 
 **Parameters:**
 | Parameter | Type | Required | Description |
@@ -58,6 +58,7 @@ Creates a new flywheel job that runs the complete NIM workflow including data ex
 
 **Example cURL:**
 ```bash
+# Example: Create a job for financial news classification workload
 curl -X POST "http://localhost:8000/api/jobs" \
   -H "Content-Type: application/json" \
   -d '{
@@ -96,6 +97,8 @@ Retrieves a list of all flywheel jobs with their current status and basic inform
   ]
 }
 ```
+
+> **Note:** This example shows a financial news classification job. The `workload_id` identifies the classification task (e.g., categorizing financial news articles into classes like "market analysis", "earnings report", etc.), and `client_id` identifies the dataset source.
 
 **Example cURL:**
 ```bash
