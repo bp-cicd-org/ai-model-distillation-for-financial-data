@@ -283,8 +283,8 @@ To submit your own custom dataset, provide the loader with a file in [JSON Lines
     ]
   },
   "workload_id": "news_classifier",
-  "client_id": "<DATASET ID>", # dataset identifier in the flywheel server
-  "timestamp": 1760845128 #timestamp when dataset was last updated
+  "client_id": "<DATASET ID>",
+  "timestamp": 1760845128
 }
 ```
 
@@ -309,13 +309,13 @@ Now that you've got the developer example running and loaded with data, you can 
 ```bash
 curl -X POST http://localhost:8000/api/jobs \
 -H "Content-Type: application/json" \
--d '{"workload_id": "news_classifier", "client_id": "<DATASET ID>", # dataset identifier in the flywheel server}'
+-d '{"workload_id": "news_classifier", "client_id": "<DATASET ID>"}'
 ```
 
 #### Check Job Status
 
 ```bash
-curl -X GET http://localhost:8000/api/jobs/:job-id -H "Content-Type: application/json"
+curl -X GET http://localhost:8000/api/jobs/{job_id} -H "Content-Type: application/json"
 ```
 
 > **📖 For complete API documentation:** See [API Reference](07-api-reference.md)

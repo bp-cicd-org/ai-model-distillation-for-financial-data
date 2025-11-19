@@ -188,7 +188,7 @@ nmp_config:
   nemo_base_url: "http://nemo.test"
   nim_base_url: "http://nim.test"
   datastore_base_url: "http://data-store.test"
-  nmp_namespace: "dfwbp"
+  nmp_namespace: "dfwfd"
 ```
 
 | Option | Description | Default |
@@ -196,7 +196,7 @@ nmp_config:
 | `nemo_base_url` | Base URL for NeMo services | `http://nemo.test` |
 | `nim_base_url` | Base URL for NIM services | `http://nim.test` |
 | `datastore_base_url` | Base URL for datastore services | `http://data-store.test` |
-| `nmp_namespace` | Namespace for NMP resources | "dfwbp" |
+| `nmp_namespace` | Namespace for NMP resources | "dfwfd" |
 
 ## Logging Configuration
 
@@ -227,7 +227,7 @@ The `mlflow_config` section controls MLflow integration for experiment tracking 
 mlflow_config:
   # enabled: automatically set based on COMPOSE_PROFILES environment variable
   tracking_uri: "http://0.0.0.0:5000"
-  experiment_name_prefix: "data-flywheel"
+  experiment_name_prefix: "findistil"
   artifact_location: "./mlruns"
 ```
 
@@ -235,7 +235,7 @@ mlflow_config:
 |--------|-------------|---------|-------|
 | `enabled` | Enable MLflow integration | Automatically set | Determined by checking if "mlflow" is in `COMPOSE_PROFILES` |
 | `tracking_uri` | MLflow tracking server URI | "http://0.0.0.0:5000" | URL of the MLflow tracking server |
-| `experiment_name_prefix` | Prefix for experiment names | "data-flywheel" | Used to organize experiments |
+| `experiment_name_prefix` | Prefix for experiment names | "findistil" | Used to organize experiments |
 | `artifact_location` | Location for MLflow artifacts | "./mlruns" | Directory for storing model artifacts |
 
 ### Enabling MLflow
@@ -309,6 +309,9 @@ Note: Not all models may be enabled by default in the configuration. Enable them
 
 ## Evaluation Settings
 
+> **Note**  
+> This financial services variant defaults to `workload_type: "classification"` with F1-score based evaluation for chat-completion. Tool-calling workflows remain supported when configured.
+
 The `data_split_config` section controls evaluation processes:
 
 ### Data Split Configuration
@@ -321,7 +324,7 @@ data_split_config:
   val_ratio: 0.1
   min_total_records: 50
   random_seed: null
-  limit: 10000
+  limit: null
   parse_function_arguments: true
 ```
 
@@ -331,7 +334,7 @@ data_split_config:
 | `val_ratio` | Ratio of data used for validation | 0.1 | Must be ≥ 0 and < 1 (10% of remaining data after eval, stratified) |
 | `min_total_records` | Minimum required records | 50 | Total dataset size requirement |
 | `random_seed` | Seed for reproducible splits | null | Set for reproducible results |
-| `limit` | Limit for evaluator | 10000 | Set for evaluator config limit |
+| `limit` | Limit for evaluator | null | Use all available records when null |
 | `parse_function_arguments` | Parse function arguments to JSON | true | Data validation: converts string function arguments to JSON objects |
 
 #### Stratified Splitting Behavior
@@ -405,9 +408,9 @@ When all records use the same tool, stratification automatically falls back to r
 > - Adjust the validation ratio based on dataset size
 > - Set a specific random seed for reproducible results
 >
-> You can override just the parameters you want to change - any parameters not specified in the POST request will automatically use their default values shown in the table above. For instance, you could override just the `eval_size` while keeping the default values for all other parameters.
+> You can override just the parameters you want to change - any parameters not specified in the POST request will automatically use their default values from the API schema, while omitting the entire `data_split_config` in the request uses the values defined in `config/config.yaml`. For example, you could override just the `eval_size` while keeping other parameters from the YAML.
 >
-> See the [Run a Job section](02-quickstart.md#run-a-job) in the Quickstart Guide for a complete example.
+> See the [Job Operations section](02-quickstart.md#job-operations) in the Quickstart Guide for a complete example.
 
 ## Fine-tuning Options
 
@@ -417,13 +420,14 @@ The `training_config` and `lora_config` sections control model fine-tuning:
 training_config:
   training_type: "sft"
   finetuning_type: "lora"
-  epochs: 2
-  batch_size: 16
+  epochs: 1
+  batch_size: 64
   learning_rate: 0.0001
 
 lora_config:
-  adapter_dim: 32
+  adapter_dim: 16
   adapter_dropout: 0.1
+  sequence_packing_enabled: true
 ```
 
 ### Training Configuration
@@ -432,16 +436,17 @@ lora_config:
 |--------|-------------|---------|-------|
 | `training_type` | Type of training | "sft" | Supervised Fine-Tuning |
 | `finetuning_type` | Fine-tuning method | "lora" | Low-Rank Adaptation |
-| `epochs` | Training epochs | 2 | Full passes through data |
-| `batch_size` | Batch size | 16 | Samples per training step |
+| `epochs` | Training epochs | 1 | Full passes through data |
+| `batch_size` | Batch size | 64 | Samples per training step |
 | `learning_rate` | Learning rate | 0.0001 | Training step size |
 
 ### LoRA Configuration
 
 | Option | Description | Default | Notes |
 |--------|-------------|---------|-------|
-| `adapter_dim` | LoRA adapter dimension | 32 | Rank of adaptation |
+| `adapter_dim` | LoRA adapter dimension | 16 | Rank of adaptation |
 | `adapter_dropout` | Dropout rate | 0.1 | Regularization parameter |
+| `sequence_packing_enabled` | Enable sequence packing | true | Efficient training |
 
 ## Model Customization
 
@@ -521,14 +526,14 @@ Customization uses the global `training_config` and `lora_config` settings:
 training_config:
   training_type: "sft"        # Used by customization
   finetuning_type: "lora"     # Used by customization
-  epochs: 2                   # Used by customization
-  batch_size: 16              # Used by customization
+  epochs: 1                   # Used by customization
+  batch_size: 64              # Used by customization
   learning_rate: 0.0001       # Used by customization
 
 lora_config:
-  adapter_dim: 32             # Used by customization
-  adapter_alpha: 16           # Used by customization
+  adapter_dim: 16             # Used by customization
   adapter_dropout: 0.1        # Used by customization
+  sequence_packing_enabled: true  # Used by customization
 ```
 
 ### Example Configurations

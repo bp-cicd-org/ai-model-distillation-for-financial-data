@@ -14,7 +14,7 @@ The AI Model Distillation for Financial Data developer example is intended for q
 
 - **Development Tools**: 
   - Use `./scripts/run-dev.sh` for development environment with Kibana (browse `log-store-*` index) and Flower for task monitoring
-  - Query API endpoint `/api/jobs/{id}` for job status and results
+  - Query API endpoint `/api/jobs/{job_id}` for job status and results
   - Use example notebooks for interactive exploration
 
 > **📖 For complete API documentation:** See [API Reference](07-api-reference.md)  
