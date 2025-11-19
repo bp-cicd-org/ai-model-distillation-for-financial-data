@@ -300,7 +300,7 @@ Each Elasticsearch document **must** contain the following top-level keys:
 }
 ```
 
-*Why this shape?* Keeping the full request/response allows the Flywheel to replay prompts, build few-shot demonstrations, and fine-tune without lossy conversions. For classification workloads, labels wrapped in `[[[...]]]` are extracted as ground truth for F1-score evaluation.
+*Why this shape?* Keeping the full request/response allows the Flywheel to replay prompts, build few-shot demonstrations, and fine-tune without lossy conversions. For classification workloads, labels wrapped in `[[[...]]]` in the response content are extracted by NeMo Evaluator as ground truth for F1-score evaluation.
 
 > **Tagging matters** • `client_id` is meant to identify *who* produced the traffic (for example a specific micro-service, environment, or customer). Multiple workloads can share the same `client_id`.
 > **`workload_id` is much stricter:** it represents a single *type* of request. If your application is an agent with several nodes you **must assign a different `workload_id` to every node** so the Flywheel can evaluate them independently. Treat it as the primary key for slicing, deduplication, and dataset creation.
@@ -408,7 +408,7 @@ We have also found instances where `Qwen-2.5-32b-coder` did as well as `Llama-3.
   - Redis for task queue management
 - Model Integration:
   - Support for Meta Llama 3.2 1B Instruct model (configurable for 3B, 8B variants)
-  - Configurable context length up to 32768 tokens
+  - Configurable context length (default: 8192 tokens, maximum: 32768 tokens)
 - Training and Evaluation:
   - In-context learning (ICL) with configurable parameters
   - LoRA-based fine-tuning support
@@ -540,8 +540,8 @@ The following are some of the customizations that you can make after you complet
 | Category | Description | Available Options |
 |----------|-------------|------------------|
 | [Environment Variables](docs/03-configuration.md#environment-variables) | Configure system using environment variables | • **Required Variables**: NGC_API_KEY, NVIDIA_API_KEY<br>• **Optional Variables**: ES_COLLECTION_NAME, ELASTICSEARCH_URL, MONGODB_URL, REDIS_URL<br>• **Configuration**: Via .env file or system environment |
-| [Model Integration](docs/03-configuration.md#model-integration) | Configure and deploy LLM models | • **Currently Supported**: Meta Llama 3.2 1B Instruct (3B, 8B configurable)<br>• **Context Length**: Up to 32768 tokens<br>• **Hardware Config**: GPU support (configurable), PVC size (configurable)<br>• **Version Control**: Model tags supported |
-| [Evaluation Settings](docs/03-configuration.md#evaluation-settings) | Configure data splitting and evaluation parameters | • **Data Split**: Eval size (default: 100 for financial services variant), validation ratio (0.1)<br>• **Minimum Records**: 50 records required<br>• **Reproducibility**: Optional random seed<br>• **Workload Type**: Classification (default), tool_calling, or auto-detect<br>• **ICL Settings**: Context length (max 32768), reserved tokens (4096), examples (min 1, max 3)<br>• **Example Selection**: Uniform tool distribution or embedding similarity<br>• **Embedding Support**: Local/remote embedding NIMs for similarity-based selection |
+| [Model Integration](docs/03-configuration.md#model-integration) | Configure and deploy LLM models | • **Currently Supported**: Meta Llama 3.2 1B Instruct (3B, 8B configurable)<br>• **Context Length**: Default 8192 tokens, configurable up to 32768 tokens<br>• **Hardware Config**: GPU support (configurable), PVC size (configurable)<br>• **Version Control**: Model tags supported |
+| [Evaluation Settings](docs/03-configuration.md#evaluation-settings) | Configure data splitting and evaluation parameters | • **Data Split**: Eval size (default: 100 for financial services variant), validation ratio (0.1)<br>• **Minimum Records**: 50 records required<br>• **Reproducibility**: Optional random seed<br>• **Workload Type**: Classification (default), tool_calling, or auto-detect<br>• **ICL Settings**: Context length (default 8192, max 32768), reserved tokens (default 2048), examples (min 1, max 3)<br>• **Example Selection**: Uniform tool distribution or embedding similarity<br>• **Embedding Support**: Local/remote embedding NIMs for similarity-based selection |
 | [Fine-tuning Options](docs/03-configuration.md#fine-tuning-options) | Customize model training | • **Training Type**: SFT (Supervised Fine-Tuning)<br>• **Method**: LoRA with configurable parameters<br>• **Parameters**: epochs (1), batch size (64), learning rate (0.0001)<br>• **LoRA Config**: adapter dimension (16), dropout (0.1) |
 | [Data Infrastructure](docs/03-configuration.md#data-infrastructure) | Configure data storage and processing | • **Storage**: Elasticsearch for logs<br>• **Queue**: Redis for task processing<br>• **Database**: MongoDB for API data<br>• **Processing**: Celery workers with configurable concurrency |
 | [Deployment Options](docs/03-configuration.md#deployment-options) | Infrastructure configuration | • **Development**: Docker Compose with hot reloading<br>• **Production**: Kubernetes deployment via [Helm charts](docs/11-helm-installation.md)<br>• **Services**: API, Celery Worker, Redis, MongoDB, Elasticsearch<br>• **Resource Config**: Network mode, volume mounts, health checks<br>• **Environment**: Configurable URLs and API keys |
