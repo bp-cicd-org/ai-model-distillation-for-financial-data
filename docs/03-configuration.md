@@ -197,7 +197,7 @@ nmp_config:
 | `nemo_base_url` | Base URL for NeMo services | `http://nemo.test` |
 | `nim_base_url` | Base URL for NIM services | `http://nim.test` |
 | `datastore_base_url` | Base URL for datastore services | `http://data-store.test` |
-| `nmp_namespace` | Namespace for NMP resources | Config file default: "dfwfd" (financial services variant). Code default: "dwfbp". **Note:** The config file value takes precedence over the code default when the configuration file is loaded. |
+| `nmp_namespace` | Namespace for NMP resources | Config file default: "dfwfd" (financial services variant). Code default: "dfwbp". **Note:** The config file value takes precedence over the code default when the configuration file is loaded. |
 
 ## Logging Configuration
 

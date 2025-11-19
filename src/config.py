@@ -27,7 +27,7 @@ class NMPConfig(BaseModel):
     datastore_base_url: str = Field(..., frozen=True)
     nemo_base_url: str = Field(..., frozen=True)
     nim_base_url: str = Field(..., frozen=True)
-    nmp_namespace: str = Field("dwfbp", frozen=True)
+    nmp_namespace: str = Field("dfwbp", frozen=True)
 
 
 class DataSplitConfig(BaseModel):

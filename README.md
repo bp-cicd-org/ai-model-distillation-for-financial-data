@@ -2,58 +2,59 @@
 
 > **Note:** This is a financial services variant of the NVIDIA Data Flywheel Foundational Blueprint, specifically configured for financial news classification workloads with F1-score evaluation. The underlying architecture and core functionality remain based on the Data Flywheel Blueprint.
 
-Deploy this developer example to create a **production-grade autonomous Data Flywheel service** that uses the NeMo Microservices platform to continuously discover and promote more efficient models for financial data analysis.
+**Deploy a production-grade Data Flywheel service** that uses NVIDIA NeMo Microservices to continuously discover and promote more efficient models for financial data analysis. Get started in minutes: [Quickstart Guide](./docs/02-quickstart.md)
 
-You can get started quickly and achieve similar results using your own infrastructure by following the [Quickstart guide](./docs/02-quickstart.md).
+## What This Does
 
-## Quick Overview
+Automates model distillation for financial classification tasks. The system:
 
-This developer example provides a reusable recipe to experiment and train distilled models using the NVIDIA Data Flywheel Blueprint. At the heart of the blueprint is the flywheel orchestrator, a unified control plane that abstracts the complexity of interacting directly with NVIDIA NeMo microservices. The orchestrator API coordinates the data flywheel job by leveraging a suite of modular NeMo microservices:
+- Collects production prompt/response logs from your applications
+- Creates evaluation and training datasets automatically
+- Fine-tunes smaller models (LoRA) and evaluates them against teacher models
+- Reports F1-scores to identify cost-effective alternatives
 
-- **NVIDIA NeMo Customizer** to handle lightweight LoRA-based fine-tuning
-- **NVIDIA NeMo Evaluator** to automate evaluations across runs
-- **NeMo Datastore** to manage structured datasets and artifacts
-- **NeMo Deployment Manager** to spin up and serve candidate distilled models dynamically for inference
+**Key Differentiator**: Optimized for classification workloads using F1-score evaluation, ideal for financial news classification, sentiment analysis, and risk prediction.
 
-Each microservice is packaged as a Docker container for consistent deployment across different environments. This workflow is orchestrated through Kubernetes integration, ensuring dynamic orchestration of NIM microservices for experimentation and production workloads.
+### Core Components
 
-**Key Differentiator**: This financial services variant is optimized for classification workloads using F1-score evaluation, making it ideal for capital markets use cases such as financial news classification, sentiment analysis, and risk prediction.
+- **NeMo Customizer**: LoRA-based fine-tuning
+- **NeMo Evaluator**: Automated F1-score evaluation for classification
+- **NeMo Datastore**: Dataset and artifact management
+- **NeMo Deployment Manager**: Dynamic NIM deployment for inference
+
+Each microservice runs as a Docker container, orchestrated through Kubernetes for consistent deployment.
 
 ---
 
-## Capital Markets Flywheel Use Case
+## Use Case: Capital Markets
 
-Large language models (LLMs) in quantitative finance are increasingly used for alpha generation, automated report analysis, and risk prediction. Yet adoption is constrained by cost, latency, and integration complexity. In financial markets, where alpha signals emerge from rapidly evolving data, the ability to continuously fine-tune, distill, and deploy models from proprietary and real-world sources is crucial.
+**For**: Quantitative researchers, AI developers, and enterprise data scientists working with financial text classification.
 
-This developer example demonstrates how NVIDIA technology enables continuous model fine-tuning and distillation, enabling integration into financial workflows. Researchers can systematically optimize, compress, and deploy high-performing models with direct connectivity to backtesting and strategy evaluation processes.
+**Problem**: LLM adoption in finance is constrained by cost, latency, and integration complexity. Financial markets require continuous model optimization as data sources evolve.
 
-**The AI Model Distillation for Financial Data developer example is intended for quantitative researchers, AI developers, and enterprise data scientists.** Through the flywheel we operate over a financial newsfeed dataset to generate features from unstructured data that can be used for alpha research and risk prediction. The result is a set of smaller, domain-specific, and task-optimized models that maintain high accuracy while reducing computational overhead and deployment costs.
+**Solution**: Automatically distill large teacher models (49B, 70B) into smaller student models (1B, 3B, 8B) that maintain high F1-scores (0.90-0.95) on domain-specific classification tasks.
 
-### Key Capabilities for Capital Markets
+### Key Capabilities
 
-The developer example enables teams to:
-
-- **Distill large LLMs into efficient domain-specific versions** suited for financial text, thus reducing latency and inference costs while maintaining accuracy targets.
-- **Accelerate backtesting and strategy evaluation** by enabling rapid iteration and evaluation of trading signals, while maintaining model accuracy as market conditions and data sources evolve.
-- **Ensure scalability and observability** by facilitating model evaluation with built-in experiment tracking.
-- **Deploy distilled models alongside existing NIMs** into financial AI workflows across on-premises, hybrid cloud, and edge environments.
-
-These capabilities enable the deployment of lightweight, specialized models directly into research pipelines, trading systems, or edge inference environments.
+- **Model distillation**: Reduce inference costs by 50-98% while maintaining classification accuracy
+- **Rapid iteration**: Automate fine-tuning and evaluation for backtesting workflows
+- **Experiment tracking**: Built-in evaluation metrics and artifact management
+- **Flexible deployment**: Deploy alongside existing NIMs across on-premises, cloud, and edge environments
 
 ---
 
 ## What is a Data Flywheel?
 
-A data flywheel is a process that uses data exhaust from production applications (for example, LLM prompt/response logs, end user feedback, and expert labeling) to increase the overall accuracy and reduce the latency/cost of Generative AI systems. A very high level flow looks like this:
+A data flywheel uses production application data (prompt/response logs, user feedback, labels) to automatically improve model accuracy and reduce inference costs. Flow:
 
 ```mermaid
 flowchart TD
   app[Your App] --prompts/responses/feedback--> logs[Log service]
   logs --Create Datasets--> orch["Orchestrator"]
-  orch --> exp1["Exp #1"]
-  orch --> exp2["Exp #2"]
-  orch --> expN["Exp #N"]
-  exp1 --> results
+  orch --> exp1["Exp 1"]
+  orch --> exp2["Exp 2"]
+  orch --> expN["Exp N"]
+  exp1 --> results[Results]
   exp2 --> results
   expN --> results
 ```
@@ -67,25 +68,24 @@ Production traffic from your application is routed to a centralized logging serv
 
 It's a lot to decide on. Enter: The NeMo Microservice Platform.
 
-### Where the NeMo Microservices Come In
+### How NeMo Microservices Automate This
 
-The NeMo Microservice platform allows for programmatic control of **datasets**, **fine-tuning**, **evaluation**, and **inference**. This means that rather than having ML engineers manage each experiment, you can automate the exploration of various configurations using sensible defaults, and then present the most promising candidates to a research engineer or machine learning engineer for further analysis.
+NeMo Microservices provide programmatic control of datasets, fine-tuning, evaluation, and inference. Instead of manual experiment management, the system automatically explores configurations and presents promising candidates for review.
 
 ```mermaid
 flowchart TD
-
-app["Your application"] --Prompt/completion logs--> log_store["Log Store"]
-log_store --Datasets--> datasets["NeMo Datastore"]
-datasets --"Fine-tuning datasets"--> customizer["NeMo Customizer"]
-datasets --"Eval datasets"--> evaluator["NeMo Evaluator"]
-
-subgraph NIMs["Loop across ALL NIMs"]
-  customizer --"Customized model"--> NIM
-  evaluator --> NIM
-  NIM --> evaluator
-end
-
-evaluator --> results["Flywheel Results"]
+  app["Your application"] --Prompt/completion logs--> log_store["Log Store"]
+  log_store --Datasets--> datasets["NeMo Datastore"]
+  datasets --"Fine-tuning datasets"--> customizer["NeMo Customizer"]
+  datasets --"Eval datasets"--> evaluator["NeMo Evaluator"]
+  
+  subgraph NIMs["Loop across ALL NIMs"]
+    customizer --"Customized model"--> nim[NIM]
+    evaluator --> nim
+    nim --> evaluator
+  end
+  
+  evaluator --> results["Flywheel Results"]
 ```
 
 In just a few hours, this automated process built on top of NeMo microservices can:
@@ -109,153 +109,104 @@ Data Flywheels are a fledgling concept in Generative AI, but already real-world 
 
 ## Differences from the Data Flywheel Foundational Blueprint
 
-This financial services variant is based on the NVIDIA Data Flywheel Foundational Blueprint but includes several key modifications optimized for capital markets and quantitative finance use cases. The following differences are explicitly configured and should be understood when using this variant:
-
-### 1. Evaluation Metrics: F1-Score for Classification
-
-**Data Flywheel Blueprint (Original):**
-- Uses **LLM-as-judge similarity metrics** (range `[0, 1]`) for evaluation
-- Optimized for tool-calling workloads and agent routing tasks
-- Evaluates model responses using semantic similarity comparisons
-
-**Financial Services Variant (This Example):**
-- Uses **F1-score** as the primary evaluation metric for classification workloads
-- Optimized for financial news classification and text categorization tasks
-- Evaluates model responses by comparing classification labels against ground truth
-- Default `workload_type: "classification"` in configuration
-
-**Impact:** The evaluation results will show F1-scores instead of similarity scores. Higher F1-scores (closer to 1.0) indicate better classification accuracy. This is more appropriate for categorical labeling tasks common in financial data analysis.
-
-### 2. Workload Type Configuration
-
-**Data Flywheel Blueprint (Original):**
-- Default `workload_type: "auto"` (auto-detects based on data)
-- Primarily designed for tool-calling workloads
-
-**Financial Services Variant (This Example):**
-- Default `workload_type: "classification"` in `config/config.yaml`
-- Explicitly configured for classification tasks
-- Still supports tool-calling workloads when configured
-
-**Configuration Location:** `config/config.yaml` → `evaluation_config.workload_type: "classification"`
-
-### 3. Evaluation Dataset Size
-
-**Data Flywheel Blueprint (Original):**
-- Default `eval_size: 20` examples for evaluation set
-
-**Financial Services Variant (This Example):**
-- Default `eval_size: 100` examples for evaluation set
-- Larger evaluation set provides more robust performance assessment for classification tasks
-
-**Configuration Location:** `config/config.yaml` → `data_split_config.eval_size: 100`
-
-### 4. Namespace Configuration
-
-**Data Flywheel Blueprint (Original):**
-- Default namespace: `"dwfbp"` (Data Flywheel Blueprint)
-
-**Financial Services Variant (This Example):**
-- Default namespace: `"dfwfd"` (Data Flywheel for Financial Data)
-- All NeMo Microservices Platform resources are namespaced to `"dfwfd"`
-
-**Configuration Location:** `config/config.yaml` → `nmp_config.nmp_namespace: "dfwfd"`
-
-### 5. Use Case and Dataset Focus
-
-**Data Flywheel Blueprint (Original):**
-- General-purpose agent workloads
-- Tool-calling and routing use cases
-- Example: HR chatbot with multiple agent nodes
-
-**Financial Services Variant (This Example):**
-- **Financial news classification** workloads
-- Capital markets and quantitative finance focus
-- Example: Classifying financial news headlines into categories (e.g., "Analyst Rating", "Stock price movement", "Regulatory")
-- Designed for alpha research and risk prediction workflows
-
-### 6. Model Evaluation Approach
-
-**Data Flywheel Blueprint (Original):**
-- Compares student model responses using LLM-as-judge similarity
-- Focuses on semantic similarity and response quality
-
-**Financial Services Variant (This Example):**
-- Compares student model classification labels using F1-score
-- Focuses on categorical accuracy and label matching
-- Uses teacher model responses as ground truth for classification labels
-
-### 7. Score Interpretation
-
-**Data Flywheel Blueprint (Original):**
-- Scores are LLM-as-judge similarity metrics in range `[0, 1]`
-- Higher scores indicate better semantic similarity to teacher model
-
-**Financial Services Variant (This Example):**
-- Scores are F1-scores in range `[0, 1]`
-- Higher scores indicate better classification accuracy
-- F1-score balances precision and recall for categorical predictions
-
-### Summary of Configuration Differences
+This financial services variant is optimized for classification workloads. Key differences:
 
 | Aspect | Data Flywheel Blueprint | Financial Services Variant |
 |--------|------------------------|---------------------------|
 | **Default Workload Type** | `"auto"` | `"classification"` |
 | **Evaluation Metric** | LLM-as-judge similarity | F1-score |
 | **Default Eval Size** | 20 | 100 |
-| **Default Namespace** | `"dwfbp"` | `"dfwfd"` |
+| **Default Namespace** | `"dfwbp"` | `"dfwfd"` |
 | **Primary Use Case** | Tool-calling, agent routing | Financial news classification |
 | **Score Interpretation** | Semantic similarity | Classification accuracy |
 
-**Note:** All differences are configurable. You can switch back to tool-calling evaluation by setting `workload_type: "tool_calling"` in the configuration file, or use auto-detection with `workload_type: "auto"`.
+<details>
+<summary>📋 Detailed Configuration Differences (click to expand)</summary>
+
+### 1. Evaluation Metrics: F1-Score for Classification
+
+**Original Blueprint**: Uses LLM-as-judge similarity metrics (range `[0, 1]`) for tool-calling workloads.  
+**Financial Variant**: Uses F1-score for classification workloads. Evaluates by comparing classification labels against ground truth.
+
+**Impact**: Results show F1-scores instead of similarity scores. Higher F1-scores (closer to 1.0) indicate better classification accuracy.
+
+### 2. Workload Type Configuration
+
+**Original Blueprint**: Default `workload_type: "auto"` (auto-detects based on data).  
+**Financial Variant**: Default `workload_type: "classification"` in `config/config.yaml`. Still supports tool-calling when configured.
+
+**Configuration**: `config/config.yaml` → `evaluation_config.workload_type: "classification"`
+
+### 3. Evaluation Dataset Size
+
+**Original Blueprint**: Default `eval_size: 20` examples.  
+**Financial Variant**: Default `eval_size: 100` examples for more robust classification assessment.
+
+**Configuration**: `config/config.yaml` → `data_split_config.eval_size: 100`
+
+### 4. Namespace Configuration
+
+**Original Blueprint**: Default namespace `"dfwbp"` (Data Flywheel Blueprint).  
+**Financial Variant**: Default namespace `"dfwfd"` (Data Flywheel for Financial Data).
+
+**Configuration**: `config/config.yaml` → `nmp_config.nmp_namespace: "dfwfd"`
+
+### 5. Use Case Focus
+
+**Original Blueprint**: General-purpose agent workloads, tool-calling (e.g., HR chatbot).  
+**Financial Variant**: Financial news classification (e.g., "Analyst Rating", "Stock price movement", "Regulatory"). Designed for alpha research and risk prediction.
+
+### 6. Model Evaluation Approach
+
+**Original Blueprint**: Compares responses using LLM-as-judge similarity.  
+**Financial Variant**: Compares classification labels using F1-score. Uses teacher model responses as ground truth.
+
+### 7. Score Interpretation
+
+**Original Blueprint**: Scores are similarity metrics `[0, 1]` indicating semantic similarity.  
+**Financial Variant**: Scores are F1-scores `[0, 1]` indicating classification accuracy (balances precision and recall).
+
+**Note:** All differences are configurable. Switch back to tool-calling by setting `workload_type: "tool_calling"` or use auto-detection with `workload_type: "auto"`.
+
+</details>
 
 ---
 
 ## How to Use This Blueprint
 
-The strategies in this reference implementation have proven effective in some use cases, but our work is ongoing. Some aspects of this implementation may go against common wisdom:
+### Quick Start
 
-- Routing production traffic directly into fine-tuning without PII removal
-- Building evaluation datasets with no ground truth other than what the production model is responding with
-- Not doing any hand-labeling of data
+1. **Learn the system**: Follow the [Quickstart Guide](./docs/02-quickstart.md) to deploy and run with sample data
+2. **Instrument your app**: Tag LLM calls with stable `workload_id` and log prompt/response pairs
+3. **Load data**: Push logs to Elasticsearch (or use the Flywheel API)
+4. **Run experiments**: Launch a job; the system automatically creates datasets, fine-tunes, and evaluates
+5. **Review results**: Check F1-scores grouped by NIM; download promising models for inspection
 
-Nonetheless, we've shown it can work. And more importantly, we believe this idea of collecting production traffic prompt/response logs, running automated experiments to explore a huge solution space, and then flagging interesting candidates for further analysis will become an indispensable part of the future Generative AI stack.
+### Understanding Results
 
-Therefore, to effectively use this blueprint:
+Results are grouped by NIM with two experiment types:
+- **base-eval**: Zero-shot F1-score baseline (before customization)
+- **customized-eval**: F1-score after fine-tuning
 
-1. **Learn from the reference implementation**
-   - **Play with the Launchable**: Walk through setting up NeMo microservices, deploying the reference services, and exercising the flywheel with the provided sample dataset.
-   - **Read the code & docs**: Finish this README and skim the source to understand how the API layer, background tasks, and NeMo microservices integrations fit together.
+**For classification workloads** (default): F1-scores range `[0, 1]`. Look for high-scoring small models (F1-score closer to 1.0), then download datasets, LoRA adapters, or model artifacts.
 
-2. **Prepare your traffic**
-   - **Instrument production applications**: Every distinct LLM call (agent node, route, tool, etc.) must emit a stable `workload_id`. Optionally include a free-form description string—ignored by inference but useful for future workload classification.
-   - **Export or connect your logs**: If you're already logging prompt/response pairs, write a small connector (or use an existing one) to push them into Elasticsearch or directly into the Flywheel API.
+**For tool-calling workloads**: Scores include function name accuracy, function name and arguments accuracy, and optionally LLM-as-judge correctness.
 
-3. **Choose how to run the Flywheel**
-   - **Always-on service**: Keep the stack running in a shared k8s/VM environment so new traffic is evaluated continuously.
-   - **Ad-hoc run**: Spin it up locally on a workstation with a few GPUs, load a slice of traffic, kick off a job, and shut everything down when the results are in.
+### Important Notes
 
-4. **Kick off a run**
-   - Load or stream the tagged traffic into Elasticsearch to launch a job. The system will spin up the necessary NIMs, schedule evaluations and fine-tunes, and track everything automatically.
+This implementation uses some non-standard approaches:
+- Routes production traffic directly into fine-tuning (no PII removal)
+- Builds evaluation datasets from production model responses (no separate ground truth)
+- No hand-labeling required
 
-5. **Interpret the results**
-   - The response is grouped by NIM. For each NIM the Flywheel currently runs two experiment types:
-     • **base-eval** – Zero-shot F1-score baseline of student model before customization
-     • **customized-eval** – F1-score evaluation of customized model after fine-tuning
-   - **For classification workloads** (default): Scores are F1-scores in the range `[0, 1]`. Look for high-scoring small models (F1-score closer to 1.0), then download the datasets, LoRA adapters, or model artifacts for manual inspection and further analysis.
-   - **For tool-calling workloads**: Scores include function name accuracy, function name and arguments accuracy, and optionally LLM-as-judge correctness.
+**Human oversight required**: The Flywheel identifies candidates; promotion to production and deeper evaluation remain human decisions.
 
-6. **Keep the human in the loop**
-   - Think of the Flywheel as a flashlight, not an autopilot. Promotion to production—as well as any deeper evaluation or dataset curation—remains a human decision.
+<details>
+<summary>📋 Data Preparation Details (click to expand)</summary>
 
-7. **Stay up to date**
-   - Follow the repo for UI improvements, new experiment strategies, and future work on accuracy-oriented flywheels.
+The Flywheel uses production **prompt/completion logs** as the source of truth. It needs to know where to find logs (e.g., Elasticsearch index) and document structure.
 
-### Preparing your data
-
-The Flywheel treats your production **prompt / completion logs** as the single source of truth. At run-time it only needs to know *where* to find the logs (e.g. an Elasticsearch index) and *how* the individual documents are shaped. Since this is a reference implementation, you can modify the code to suit your needs, but the current schemas are defined below should you decide to conform to them.
-
-#### 1 – Log schema
+### Log Schema
 
 Each Elasticsearch document **must** contain the following top-level keys:
 
@@ -361,31 +312,23 @@ messages = [
 log_classification(WORKLOAD_ID, messages)
 ```
 
-💡 **Streaming responses**: the OpenAI SDK delivers tokens incrementally in streaming mode. If you are using streaming mode in your clients, you will need to take that into account and either buffer the stream and reconstruct a full `response` object before indexing, or modify the Flywheel importer to reconstruct the full response.
+💡 **Streaming responses**: If using streaming mode, buffer the stream and reconstruct a full `response` object before indexing, or modify the Flywheel importer.
 
-#### 3 – Import helpers and customization
+### Import Helpers
 
-The reference implementation already bundles helpers you can reuse:
+The reference implementation includes:
+- `src/scripts/load_test_data.py` – CLI to bulk-load JSONL into the Flywheel index
+- `src/tasks/tasks.py::create_datasets` – Celery task that reads logs, deduplicates, and creates evaluation & training datasets
 
-* `src/scripts/load_test_data.py` – CLI to bulk-load a JSONL file into the Flywheel index.
-* `src/tasks/tasks.py::create_datasets` – Celery task that *reads* logs, deduplicates them, and turns them into evaluation & training datasets.
+You can swap Elasticsearch for another store; ensure `create_datasets` can retrieve documents in the schema above.
 
-Feel free to swap Elasticsearch for another store or adjust the mapping – just make sure `create_datasets` can still retrieve documents in the schema above.
+</details>
 
-### Real-World Results and What to Expect
+### Real-World Results
 
-The Data Flywheel Foundational Blueprint is a reference implementation of _some_ of the techniques we have explored within NVIDIA. While far from a silver bullet, real-world tests within NVIDIA have found instances where **using a Data Flywheel can reduce inference costs by up to 98.6%**, while maintaining comparable accuracy. These use cases tend to center around simpler tool calling use cases where an agent is using a tool call to route between a small set of tools. In the 98.6% example, we took traffic from an internal HR chatbot. This chat used an LLM -- `llama-3.1-70b-instruct` -- for several purposes:
+Real-world tests within NVIDIA show **cost reductions of up to 98.6%** while maintaining comparable accuracy. Example: An internal HR chatbot using `llama-3.1-70b-instruct` for tool calling was able to replace it with a fine-tuned `llama-3.2-1b-instruct` achieving ~98% accuracy.
 
-1. Chat
-2. Query rewriting for RAG
-3. Summarization
-4. Tool calling
-
-The Flywheel identified that the Tool Calling use case ended up being simple enough that a fine-tuned `llama-3.2-1b-instruct` was able to achieve ~98% accuracy relative to the 70b model being used in production.
-
-We have also found instances where `Qwen-2.5-32b-coder` did as well as `Llama-3.1-70b-instruct` without any fine-tuning, and so were able to quickly reduce inference costs and time to first token by >50% by swapping out a NIM.
-
-**For financial services classification workloads**, the flywheel enables similar cost reduction opportunities by distilling large teacher models (e.g., 49B or 70B parameters) into smaller student models (1B, 3B, or 8B) that maintain high F1-scores on domain-specific classification tasks. Results from the financial news classification example show that with sufficient training data (25,000 examples), student models can achieve F1-scores of 0.90-0.95 relative to the teacher model, enabling significant cost savings while maintaining classification accuracy.
+**For financial services classification**: With sufficient training data (25,000 examples), student models (1B, 3B, 8B) achieve F1-scores of 0.90-0.95 relative to teacher models (49B, 70B), enabling significant cost savings while maintaining classification accuracy.
 
 ### Additional Reading
 
@@ -398,30 +341,37 @@ We have also found instances where `Qwen-2.5-32b-coder` did as well as `Llama-3.
 * [Overview of NeMo Microservices](https://docs.nvidia.com/nemo/microservices/latest/about/index.html) - NeMo Microservices Platform documentation
 * [Enterprises Onboard AI Teammates Faster With NVIDIA NeMo Tools to Scale Employee Productivity](https://blogs.nvidia.com/blog/nemo-enterprises-ai-teammates-employee-productivity/) - Enterprise use cases
 
+<details>
+<summary>🔧 Technical Details (click to expand)</summary>
+
 ## Technical Details
 
 ### Key Features
 
-- Data Collection and Storage:
-  - Elasticsearch for logging prompt/completion data
-  - MongoDB for API and metadata storage
-  - Redis for task queue management
-- Model Integration:
-  - Support for Meta Llama 3.2 1B Instruct model (configurable for 3B, 8B variants)
-  - Configurable context length (default: 8192 tokens, maximum: 32768 tokens)
-- Training and Evaluation:
-  - In-context learning (ICL) with configurable parameters
-  - LoRA-based fine-tuning support
-  - **Automated stratified data splitting** using scikit-learn for balanced datasets
-  - **F1-score evaluation** for classification workloads (default)
-- Deployment Infrastructure:
-  - Docker Compose setup for development
-  - Celery workers for background processing
-  - Health monitoring for core services
-- Resource Management:
-  - Automatic cleanup of running resources during system shutdown
-  - Manual cleanup scripts for maintenance operations
-  - Comprehensive error handling and logging
+**Data Collection and Storage**:
+- Elasticsearch for logging prompt/completion data
+- MongoDB for API and metadata storage
+- Redis for task queue management
+
+**Model Integration**:
+- Support for Meta Llama 3.2 1B Instruct (configurable for 3B, 8B variants)
+- Configurable context length (default: 8192 tokens, maximum: 32768 tokens)
+
+**Training and Evaluation**:
+- In-context learning (ICL) with configurable parameters
+- LoRA-based fine-tuning support
+- Automated stratified data splitting using scikit-learn for balanced datasets
+- F1-score evaluation for classification workloads (default)
+
+**Deployment Infrastructure**:
+- Docker Compose setup for development
+- Celery workers for background processing
+- Health monitoring for core services
+
+**Resource Management**:
+- Automatic cleanup of running resources during system shutdown
+- Manual cleanup scripts for maintenance operations
+- Comprehensive error handling and logging
 
 ### Design Philosophy
 
@@ -518,6 +468,8 @@ This ensures that only **one** Flywheel experiment can allocate GPUs at any give
 
 **Roadmap** – Automatic GPU introspection and smarter scheduling are planned for a future version of the Blueprint so multiple Flywheel runs can execute in parallel when resources permit.
 
+</details>
+
 ## Next Steps
 
 - Review the [Architecture Overview](./docs/01-architecture.md)
@@ -533,81 +485,67 @@ This ensures that only **one** Flywheel experiment can allocate GPUs at any give
 - Set up Kubernetes with [Helm Installation](./docs/11-helm-installation.md)
 - Extract models using [LoRA Model Extraction](./docs/12-lora-model-extraction.md)
 
+<details>
+<summary>⚙️ Available Customizations (click to expand)</summary>
+
 ## Available Customizations
 
-The following are some of the customizations that you can make after you complete the steps in the [Quickstart Guide](./docs/02-quickstart.md).
+After completing the [Quickstart Guide](./docs/02-quickstart.md), you can customize:
 
-| Category | Description | Available Options |
-|----------|-------------|------------------|
-| [Environment Variables](docs/03-configuration.md#environment-variables) | Configure system using environment variables | • **Required Variables**: NGC_API_KEY, NVIDIA_API_KEY<br>• **Optional Variables**: ES_COLLECTION_NAME, ELASTICSEARCH_URL, MONGODB_URL, REDIS_URL<br>• **Configuration**: Via .env file or system environment |
-| [Model Integration](docs/03-configuration.md#model-integration) | Configure and deploy LLM models | • **Currently Supported**: Meta Llama 3.2 1B Instruct (3B, 8B configurable)<br>• **Context Length**: Default 8192 tokens, configurable up to 32768 tokens<br>• **Hardware Config**: GPU support (configurable), PVC size (configurable)<br>• **Version Control**: Model tags supported |
-| [Evaluation Settings](docs/03-configuration.md#evaluation-settings) | Configure data splitting and evaluation parameters | • **Data Split**: Eval size (default: 100 for financial services variant), validation ratio (0.1)<br>• **Minimum Records**: 50 records required<br>• **Reproducibility**: Optional random seed<br>• **Workload Type**: Classification (default), tool_calling, or auto-detect<br>• **ICL Settings**: Context length (default 8192, max 32768), reserved tokens (default 2048), examples (min 1, max 3)<br>• **Example Selection**: Uniform tool distribution or embedding similarity<br>• **Embedding Support**: Local/remote embedding NIMs for similarity-based selection |
-| [Fine-tuning Options](docs/03-configuration.md#fine-tuning-options) | Customize model training | • **Training Type**: SFT (Supervised Fine-Tuning)<br>• **Method**: LoRA with configurable parameters<br>• **Parameters**: epochs (1), batch size (64), learning rate (0.0001)<br>• **LoRA Config**: adapter dimension (16), dropout (0.1) |
-| [Data Infrastructure](docs/03-configuration.md#data-infrastructure) | Configure data storage and processing | • **Storage**: Elasticsearch for logs<br>• **Queue**: Redis for task processing<br>• **Database**: MongoDB for API data<br>• **Processing**: Celery workers with configurable concurrency |
-| [Deployment Options](docs/03-configuration.md#deployment-options) | Infrastructure configuration | • **Development**: Docker Compose with hot reloading<br>• **Production**: Kubernetes deployment via [Helm charts](docs/11-helm-installation.md)<br>• **Services**: API, Celery Worker, Redis, MongoDB, Elasticsearch<br>• **Resource Config**: Network mode, volume mounts, health checks<br>• **Environment**: Configurable URLs and API keys |
+| Category | Key Options |
+|----------|-------------|
+| **Environment Variables** | Required: `NGC_API_KEY`, `NVIDIA_API_KEY`<br>Optional: `ES_COLLECTION_NAME`, `ELASTICSEARCH_URL`, `MONGODB_URL`, `REDIS_URL` |
+| **Model Integration** | Meta Llama 3.2 1B/3B/8B Instruct<br>Context length: 8192-32768 tokens<br>GPU support, PVC size configurable |
+| **Evaluation Settings** | Eval size: 100 (default for financial variant)<br>Workload type: Classification (default), tool_calling, or auto-detect<br>ICL: Context length, reserved tokens, examples (1-3) |
+| **Fine-tuning Options** | LoRA: epochs (1), batch size (64), learning rate (0.0001)<br>Adapter dimension (16), dropout (0.1) |
+| **Data Infrastructure** | Elasticsearch (logs), Redis (queue), MongoDB (API data)<br>Celery workers with configurable concurrency |
+| **Deployment Options** | Docker Compose (dev) or Kubernetes via [Helm charts](docs/11-helm-installation.md) |
 
-Refer to the [Configuration Guide](./docs/03-configuration.md) for more information.
+Refer to the [Configuration Guide](./docs/03-configuration.md) for complete details.
+
+</details>
+
+<details>
+<summary>🤝 Contributing (click to expand)</summary>
 
 ## Contributing
 
-1. Install development dependencies:
+1. **Install dependencies**: `uv sync --dev`
+2. **Start services**: `./scripts/run.sh` (starts required Docker Compose services)
+3. **Run tests**:
+   - Unit tests: `uv run pytest` (requires MongoDB)
+   - Integration tests: `uv run pytest -m integration` (mocked NeMo microservices)
+4. **Clean up**: `./scripts/stop.sh` (optional: `./scripts/clear_all_volumes.sh`)
 
-   ```sh
-   uv sync --dev
-   ```
+**API changes**: Regenerate OpenAPI spec with `uv run python scripts/generate_openapi.py`
 
-   This command installs all dependencies needed to build the container and run the tests.
+</details>
 
-2. Start required services:
-
-   ```sh
-   ./scripts/run.sh
-   ```
-
-   This starts the necessary services via docker compose that are required for testing.
-
-3. Run the tests:
-
-   - For unit tests (requires MongoDB from docker compose):
-
-     ```sh
-     uv run pytest
-     ```
-
-   - For integration tests (with mocked NeMo microservices components):
-
-     ```sh
-     uv run pytest -m integration
-     ```
-
-4. Clean up after development:
-
-   - Stop all services:
-
-     ```sh
-     ./scripts/stop.sh
-     ```
-
-   - (Optional) Clear all database volumes:
-
-     ```sh
-     ./scripts/clear_all_volumes.sh
-     ```
-
-If you modify the API, regenerate the openapi.json with the following command:
-
-```sh
-uv run python scripts/generate_openapi.py
-```
+<details>
+<summary>📄 License & Disclaimer (click to expand)</summary>
 
 ## License
 
-This NVIDIA AI BLUEPRINT is licensed under the [Apache License, Version 2.0.](./LICENSE) This project will download and install additional third-party open source software projects and containers. Review [the license terms of these open source software projects](./LICENSE-3rd-party.txt) before use.
+This NVIDIA AI BLUEPRINT is licensed under the [Apache License, Version 2.0](./LICENSE). This project downloads and installs additional third-party open source software projects and containers. Review [the license terms](./LICENSE-3rd-party.txt) before use.
 
-The software and materials are governed by the NVIDIA Software License Agreement (found at https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/) and the Product-Specific Terms for NVIDIA AI Products (found at https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/), except that models are governed by the AI Foundation Models Community License Agreement (found at NVIDIA Agreements | Enterprise Software | NVIDIA Community Model License) and NVIDIA dataset is governed by the NVIDIA Asset License Agreement found [here](./LICENSE-dataset).
+The software and materials are governed by:
+- NVIDIA Software License Agreement: https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/
+- Product-Specific Terms for NVIDIA AI Products: https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/
+- Models: AI Foundation Models Community License Agreement
+- Dataset: NVIDIA Asset License Agreement ([LICENSE-dataset](./LICENSE-dataset))
 
-For Meta/llama-3.1-70b-instruct model the Llama 3.1 Community License Agreement, for nvidia/llama-3.2-nv-embedqa-1b-v2model the Llama 3.2 Community License Agreement, and for the nvidia/llama-3.2-nv-rerankqa-1b-v2 model the Llama 3.2 Community License Agreement. Built with Llama.
+**Model-specific licenses**:
+- Meta/llama-3.1-70b-instruct: Llama 3.1 Community License Agreement
+- nvidia/llama-3.2-nv-embedqa-1b-v2: Llama 3.2 Community License Agreement
+- nvidia/llama-3.2-nv-rerankqa-1b-v2: Llama 3.2 Community License Agreement
 
-## Disclaimer:
+## Disclaimer
 
-The Data Flywheel Blueprint is shared as reference and is provided "as is". The security in the production environment is the responsibility of the end users deploying it. When deploying in a production environment, please have security experts review any potential risks and threats; define the trust boundaries, implement logging and monitoring capabilities, secure the communication channels, integrate AuthN & AuthZ with appropriate controls.
+The Data Flywheel Blueprint is shared as reference and provided "as is". Production security is the responsibility of end users. When deploying in production:
+- Have security experts review potential risks and threats
+- Define trust boundaries
+- Implement logging and monitoring capabilities
+- Secure communication channels
+- Integrate AuthN & AuthZ with appropriate controls
+
+</details>

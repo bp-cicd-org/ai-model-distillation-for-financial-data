@@ -64,7 +64,7 @@ Where:
 - `customized-meta-llama-3.2-1b-instruct` is the model name
 - `cust-DbcC6k3UH3iDhfnhats9ZP` is the auto-generated revision
 
-**Namespace**: flywheel stores models in the `dfwfd` namespace for this financial services variant (as configured in `config/config.yaml`). The config file default is `dfwfd` for this financial services variant, while the code default is `dwfbp`. **Note:** The config file value takes precedence over the code default when the configuration file is loaded. The namespace is configurable via `nmp_namespace` in the configuration file and is included in the `customized_model` field returned by the job details API.
+**Namespace**: flywheel stores models in the `dfwfd` namespace for this financial services variant (as configured in `config/config.yaml`). The config file default is `dfwfd` for this financial services variant, while the code default is `dfwbp`. **Note:** The config file value takes precedence over the code default when the configuration file is loaded. The namespace is configurable via `nmp_namespace` in the configuration file and is included in the `customized_model` field returned by the job details API.
 
 **Source**: `src/tasks/tasks.py:790`
 
