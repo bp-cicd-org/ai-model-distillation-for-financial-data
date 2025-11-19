@@ -116,7 +116,7 @@ This financial services variant is optimized for classification workloads. Key d
 | **Default Workload Type** | `"auto"` | `"classification"` |
 | **Evaluation Metric** | LLM-as-judge similarity | F1-score |
 | **Default Eval Size** | 20 | 100 |
-| **Default Namespace** | `"dfwbp"` | `"dfwfd"` |
+| **Default Namespace** | `"dfwbp"` | `"dfwbp-fd"` |
 | **Primary Use Case** | Tool-calling, agent routing | Financial news classification |
 | **Score Interpretation** | Semantic similarity | Classification accuracy |
 
@@ -147,9 +147,9 @@ This financial services variant is optimized for classification workloads. Key d
 ### 4. Namespace Configuration
 
 **Original Blueprint**: Default namespace `"dfwbp"` (Data Flywheel Blueprint).  
-**Financial Variant**: Default namespace `"dfwfd"` (Data Flywheel for Financial Data).
+**Financial Variant**: Default namespace `"dfwbp-fd"` (Data Flywheel Blueprint for Financial Data).
 
-**Configuration**: `config/config.yaml` → `nmp_config.nmp_namespace: "dfwfd"`
+**Configuration**: `config/config.yaml` → `nmp_config.nmp_namespace: "dfwbp-fd"`
 
 ### 5. Use Case Focus
 

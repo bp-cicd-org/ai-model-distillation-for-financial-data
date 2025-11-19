@@ -71,7 +71,7 @@ def delete_model_from_store(ENTITY_STORE_URL: str, name: str, namespace: str = "
         dict: Response JSON if successful, None otherwise
         
     Example:
-        >>> delete_model_from_store("http://localhost:8000", "customized-llama", "dfwfd")
+        >>> delete_model_from_store("http://localhost:8000", "customized-llama", "dfwbp-fd")
     """
     url = f"{ENTITY_STORE_URL}/v1/models/{namespace}/{name}"
     headers = {

@@ -335,7 +335,7 @@ foundationalFlywheelServer:
       datastore_base_url: "http://data-store.test"
 
       # All resources created in NeMo Microservices Platform (NMP) will be namespaced to this value
-      nmp_namespace: "dfwfd"
+      nmp_namespace: "dfwbp-fd"
 
     # Logging configuration
     logging_config:
@@ -346,7 +346,7 @@ foundationalFlywheelServer:
     # Set COMPOSE_PROFILES=mlflow to enable both the MLflow service and configuration
     mlflow_config:
       tracking_uri: "http://df-mlflow-service:5000"
-      experiment_name_prefix: "findistil"
+      experiment_name_prefix: "dfw-fd"
       artifact_location: "./mlruns"
 
     llm_judge_config:

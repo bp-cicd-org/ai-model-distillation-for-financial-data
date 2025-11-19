@@ -153,7 +153,7 @@ class MLflowConfig(BaseModel):
     )
     tracking_uri: str = Field(default="http://0.0.0.0:5000", description="MLflow tracking URI")
     experiment_name_prefix: str = Field(
-        default="findistil", description="Prefix for experiment names"
+        default="dfw-fd", description="Prefix for experiment names"
     )
     artifact_location: str = Field(default="./mlruns", description="Location for MLflow artifacts")
 
