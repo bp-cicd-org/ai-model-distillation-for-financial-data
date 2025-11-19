@@ -32,7 +32,7 @@ Each microservice runs as a Docker container, orchestrated through Kubernetes fo
 
 **Problem**: LLM adoption in finance is constrained by cost, latency, and integration complexity. Financial markets require continuous model optimization as data sources evolve.
 
-**Solution**: Automatically distill large teacher models (49B, 70B) into smaller student models (1B, 3B, 8B) that maintain high F1-scores (0.90-0.95) on domain-specific classification tasks.
+**Solution**: Automatically distill large teacher models (70B) into smaller student models (1B, 3B, 8B) that maintain high F1-scores (0.90-0.95) on domain-specific classification tasks.
 
 ### Key Capabilities
 
