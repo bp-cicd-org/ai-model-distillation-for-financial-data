@@ -27,7 +27,7 @@ class NMPConfig(BaseModel):
     datastore_base_url: str = Field(..., frozen=True)
     nemo_base_url: str = Field(..., frozen=True)
     nim_base_url: str = Field(..., frozen=True)
-    nmp_namespace: str = Field("dfwbp", frozen=True)
+    nmp_namespace: str = Field("dfwfd", frozen=True)  # Data Flywheel Financial Distillation
 
 
 class DataSplitConfig(BaseModel):
@@ -120,7 +120,7 @@ class EvaluationConfig(BaseModel):
     """Configuration for evaluation strategy"""
 
     workload_type: Literal["auto", "classification", "tool_calling"] = Field(
-        default="classification",
+        default="auto",
         description="Workload type: 'auto' (auto-detect), 'classification' (F1 score), or 'tool_calling' (function metrics)",
     )
     tool_eval_type: Literal["tool-calling-metric", "tool-calling-judge"] = Field(
