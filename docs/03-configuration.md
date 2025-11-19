@@ -189,7 +189,7 @@ nmp_config:
   nemo_base_url: "http://nemo.test"
   nim_base_url: "http://nim.test"
   datastore_base_url: "http://data-store.test"
-  nmp_namespace: "dfwbp-fd"
+  nmp_namespace: "dfwfd"  # Data Flywheel Financial Distillation
 ```
 
 | Option | Description | Default |
@@ -197,7 +197,7 @@ nmp_config:
 | `nemo_base_url` | Base URL for NeMo services | `http://nemo.test` |
 | `nim_base_url` | Base URL for NIM services | `http://nim.test` |
 | `datastore_base_url` | Base URL for datastore services | `http://data-store.test` |
-| `nmp_namespace` | Namespace for NMP resources | Config file default: "dfwbp-fd" (financial services variant). Code default: "dfwbp". **Note:** The config file value takes precedence over the code default when the configuration file is loaded. |
+| `nmp_namespace` | Namespace for NMP resources | Config file default: "dfwfd" (Data Flywheel Financial Distillation). Code default: "dfwbp". **Note:** The config file value takes precedence over the code default when the configuration file is loaded. |
 
 ## Logging Configuration
 
@@ -228,7 +228,7 @@ The `mlflow_config` section controls MLflow integration for experiment tracking 
 mlflow_config:
   # enabled: automatically set based on COMPOSE_PROFILES environment variable
   tracking_uri: "http://0.0.0.0:5000"
-  experiment_name_prefix: "dfw-fd"
+  experiment_name_prefix: "findistil"
   artifact_location: "./mlruns"
 ```
 
@@ -236,7 +236,7 @@ mlflow_config:
 |--------|-------------|---------|-------|
 | `enabled` | Enable MLflow integration | Automatically set | Determined by checking if "mlflow" is in `COMPOSE_PROFILES` |
 | `tracking_uri` | MLflow tracking server URI | "http://0.0.0.0:5000" | URL of the MLflow tracking server |
-| `experiment_name_prefix` | Prefix for experiment names | "dfw-fd" | Used to organize experiments |
+| `experiment_name_prefix` | Prefix for experiment names | "findistil" | Used to organize experiments |
 | `artifact_location` | Location for MLflow artifacts | "./mlruns" | Directory for storing model artifacts |
 
 ### Enabling MLflow

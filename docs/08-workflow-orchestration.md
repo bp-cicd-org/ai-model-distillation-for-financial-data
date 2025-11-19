@@ -281,7 +281,7 @@ nvidia-smi
 curl "http://nemo.test/v1/models"
 
 # Check Kubernetes resources
-kubectl get pods -n dfwbp-fd
+kubectl get pods -n dfwfd
 ```
 
 #### 3. **Evaluation Timeouts**

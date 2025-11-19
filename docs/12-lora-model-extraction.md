@@ -56,15 +56,15 @@ Examples:
 
 **Full Model Identifier Format**: The actual model identifier includes the namespace and revision:
 ```
-dfwbp-fd/customized-meta-llama-3.2-1b-instruct@cust-DbcC6k3UH3iDhfnhats9ZP
+dfwfd/customized-meta-llama-3.2-1b-instruct@cust-DbcC6k3UH3iDhfnhats9ZP
 ```
 
 Where:
-- `dfwbp-fd` is the namespace
+- `dfwfd` is the namespace (Data Flywheel Financial Distillation)
 - `customized-meta-llama-3.2-1b-instruct` is the model name
 - `cust-DbcC6k3UH3iDhfnhats9ZP` is the auto-generated revision
 
-**Namespace**: flywheel stores models in the `dfwbp-fd` namespace for this financial services variant (as configured in `config/config.yaml`). The config file default is `dfwbp-fd` for this financial services variant, while the code default is `dfwbp`. **Note:** The config file value takes precedence over the code default when the configuration file is loaded. The namespace is configurable via `nmp_namespace` in the configuration file and is included in the `customized_model` field returned by the job details API.
+**Namespace**: flywheel stores models in the `dfwfd` namespace (Data Flywheel Financial Distillation) for this financial services variant (as configured in `config/config.yaml`). The config file default is `dfwfd` for this financial services variant, while the code default is `dfwbp`. **Note:** The config file value takes precedence over the code default when the configuration file is loaded. The namespace is configurable via `nmp_namespace` in the configuration file and is included in the `customized_model` field returned by the job details API.
 
 **Source**: `src/tasks/tasks.py:790`
 
@@ -90,7 +90,7 @@ curl -X GET "http://your-api-url/jobs/$JOB_ID"
 
 Look for the `customized_model` field in the response. It will have this format:
 ```
-dfwbp-fd/customized-meta-llama-3.2-1b-instruct@cust-DbcC6k3UH3iDhfnhats9ZP
+dfwfd/customized-meta-llama-3.2-1b-instruct@cust-DbcC6k3UH3iDhfnhats9ZP
 ```
 
 Extract the namespace, model name, and revision:
