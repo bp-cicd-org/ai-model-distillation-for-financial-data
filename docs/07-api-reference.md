@@ -25,16 +25,18 @@ Creates a new flywheel job that runs the complete NIM workflow including data ex
 **Request Body:**
 ```json
 {
-  "workload_id": "customer-service-v1",
-  "client_id": "production-app",
+  "workload_id": "news_classifier",
+  "client_id": "financial-news-dataset",
   "data_split_config": {
-    "eval_size": 20,
+    "eval_size": 100,
     "val_ratio": 0.1,
     "min_total_records": 50,
     "limit": null
   }
 }
 ```
+
+> **Note:** The example above shows `eval_size: 100`, which matches the default in `config/config.yaml` for this financial services variant. If you omit `data_split_config` entirely, the service uses config file defaults (`eval_size: 100`). If you include `data_split_config` but omit fields, omitted fields use API schema defaults (`eval_size: 20`).
 
 **Parameters:**
 | Parameter | Type | Required | Description |
@@ -49,20 +51,18 @@ Creates a new flywheel job that runs the complete NIM workflow including data ex
 ```json
 {
   "id": "507f1f77bcf86cd799439011",
-  "status": "queued",
+  "status": "pending",
   "message": "NIM workflow started"
 }
 ```
-
-> **Note:** There is currently a known inconsistency where the POST endpoint returns `"queued"` but the job is actually stored with `"pending"` status. Subsequent GET requests will show the actual stored status.
 
 **Example cURL:**
 ```bash
 curl -X POST "http://localhost:8000/api/jobs" \
   -H "Content-Type: application/json" \
   -d '{
-    "workload_id": "customer-service-v1",
-    "client_id": "production-app"
+    "workload_id": "news_classifier",
+    "client_id": "financial-news-dataset"
   }'
 ```
 
@@ -79,8 +79,8 @@ Retrieves a list of all flywheel jobs with their current status and basic inform
   "jobs": [
     {
       "id": "507f1f77bcf86cd799439011",
-      "workload_id": "customer-service-v1", 
-      "client_id": "production-app",
+      "workload_id": "news_classifier", 
+      "client_id": "financial-news-dataset",
       "status": "pending",
       "started_at": "2024-01-15T10:30:00Z",
       "finished_at": null,
@@ -115,8 +115,8 @@ Retrieves detailed information about a specific job, including all workflow stag
 ```json
 {
   "id": "507f1f77bcf86cd799439011",
-  "workload_id": "customer-service-v1",
-  "client_id": "production-app", 
+  "workload_id": "news_classifier",
+  "client_id": "financial-news-dataset", 
   "status": "completed",
   "started_at": "2024-01-15T10:30:00Z",
   "finished_at": "2024-01-15T12:45:00Z",
@@ -137,7 +137,7 @@ Retrieves detailed information about a specific job, including all workflow stag
       "evaluations": [
         {
           "eval_type": "base-eval",
-          "scores": {"accuracy": 0.85},
+          "scores": {"f1_score": 0.85},
           "started_at": "2024-01-15T11:00:00Z",
           "finished_at": "2024-01-15T11:30:00Z",
           "runtime_seconds": 1800.0,
@@ -168,6 +168,10 @@ Retrieves detailed information about a specific job, including all workflow stag
 ```
 
 </details>
+
+> Note: The `scores` keys vary by workload type:
+> - Classification (default in this financial services variant): `f1_score`
+> - Tool-calling (when enabled): `function_name_accuracy`, `function_name_and_args_accuracy`, and optionally `tool_calling_correctness`
 
 **Example cURL:**
 ```bash
@@ -232,7 +236,7 @@ The optional `data_split_config` allows you to control how logged data is proces
 
 ```json
 {
-  "eval_size": 20,
+  "eval_size": 100,
   "val_ratio": 0.1,
   "min_total_records": 50,
   "limit": null,
@@ -244,8 +248,10 @@ The optional `data_split_config` allows you to control how logged data is proces
 }
 ```
 
+> **Note:** The example shows `eval_size: 100` to match the financial services variant default. Schema default is `20`, but config file default is `100` for this variant.
+
 **Parameters:**
-- `eval_size` (int): Size of evaluation set (schema default: 20)
+- `eval_size` (int): Size of evaluation set (schema default: 20, config file default: 100 for this variant)
 - `val_ratio` (float): Validation ratio (0.0-1.0, schema default: 0.1)
 - `min_total_records` (int): Minimum total records required to proceed (schema default: 50)
 - `limit` (int|null): Max records to use for evaluation (schema default: null)
@@ -256,8 +262,8 @@ The optional `data_split_config` allows you to control how logged data is proces
 - `rare_class_threshold` (int): Group classes with ≤ this many samples as 'others' (schema default: 1)
 
 Note:
-- If you omit the entire `data_split_config` in the POST request, the service uses values from `config/config.yaml` (for this repository, the YAML defaults are `eval_size: 100`, `limit: null`, and stratification is enabled with the thresholds shown).
-- If you include `data_split_config`, any fields you omit use the API schema defaults listed above.
+- If you omit the entire `data_split_config` in the POST request, the service uses values from `config/config.yaml` (for this financial services variant, the YAML defaults are `eval_size: 100`, `limit: null`, and stratification is enabled with the thresholds shown).
+- If you include `data_split_config`, any fields you omit use the API schema defaults listed above (schema defaults differ from config file defaults for this variant).
 
 ## Python Integration Example
 
@@ -313,8 +319,8 @@ data_config = {
 }
 
 job = client.create_job(
-    workload_id="customer-service-v1",
-    client_id="production-app",
+    workload_id="news_classifier",
+    client_id="financial-news-dataset",
     data_split_config=data_config
 )
 job_id = job['id']

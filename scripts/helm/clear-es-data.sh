@@ -3,7 +3,7 @@
 set -e
 
 # Configuration
-NAMESPACE="${NAMESPACE:-nv-nvidia-blueprint-data-flywheel}"
+NAMESPACE="${NAMESPACE:-nv-nvidia-blueprint-ai-model-distillation-financial-data}"
 
 echo "🔄 Clearing Elasticsearch data in namespace: $NAMESPACE"
 

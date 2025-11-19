@@ -9,7 +9,7 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Configuration
-NAMESPACE="${NAMESPACE:-nv-nvidia-blueprint-data-flywheel}"
+NAMESPACE="${NAMESPACE:-nv-nvidia-blueprint-ai-model-distillation-financial-data}"
 
 echo "🔄 Starting to clear all data in namespace: $NAMESPACE"
 

@@ -23,6 +23,7 @@ Learn how to configure the AI Model Distillation for Financial Data Developer Ex
   - [Model Integration](#model-integration)
     - [Supported Models](#supported-models)
   - [Evaluation Settings](#evaluation-settings)
+    - [Workload Type Configuration](#workload-type-configuration)
     - [Data Split Configuration](#data-split-configuration)
       - [Stratified Splitting Behavior](#stratified-splitting-behavior)
       - [Graceful Degradation](#graceful-degradation)
@@ -59,7 +60,7 @@ Learn how to configure the AI Model Distillation for Financial Data Developer Ex
 | **Minimum GPU** | 2× (NVIDIA A100/H100/H200/B200 GPUs) |
 | **Cluster** | Single-node NVIDIA GPU cluster on Linux with cluster-admin permissions |
 | **Disk Space** | At least 200 GB free |
-| **Software** | Python 3.12<br>Docker Engine<br>Docker Compose v2 |
+| **Software** | Python 3.10+<br>Docker Engine<br>Docker Compose v2 |
 | **Services** | Elasticsearch 8.12.2<br>MongoDB 7.0<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing)<br>MLflow 2.22.0<br>Wandb 0.22.3 |
 | **Resource** | **Minimum Memory**: 1 GB (512 MB reserved for Elasticsearch)<br>**Storage**: Varies by log volume or model size<br>**Network**: Ports 8000 (API), 9200 (Elasticsearch), 27017 (MongoDB), 6379 (Redis) |
 | **Development** | Docker Compose for local development with hot reloading<br>Supports macOS (Darwin) and Linux<br>Optional: GPU support for model inference |
@@ -196,7 +197,7 @@ nmp_config:
 | `nemo_base_url` | Base URL for NeMo services | `http://nemo.test` |
 | `nim_base_url` | Base URL for NIM services | `http://nim.test` |
 | `datastore_base_url` | Base URL for datastore services | `http://data-store.test` |
-| `nmp_namespace` | Namespace for NMP resources | "dfwfd" |
+| `nmp_namespace` | Namespace for NMP resources | Config file default: "dfwfd" (financial services variant). Code default: "dwfbp". **Note:** The config file value takes precedence over the code default when the configuration file is loaded. |
 
 ## Logging Configuration
 
@@ -310,7 +311,40 @@ Note: Not all models may be enabled by default in the configuration. Enable them
 ## Evaluation Settings
 
 > **Note**  
-> This financial services variant defaults to `workload_type: "classification"` with F1-score based evaluation for chat-completion. Tool-calling workflows remain supported when configured.
+> This financial services variant uses `workload_type: "classification"` in the configuration file (`config/config.yaml`), which matches the code default of `"classification"`. This enables F1-score based evaluation for chat-completion workloads. Tool-calling workflows remain supported when configured.
+
+### Workload Type Configuration
+
+The `evaluation_config` section controls how workloads are evaluated:
+
+```yaml
+evaluation_config:
+  workload_type: "classification"  # Options: "auto", "classification", "tool_calling"
+  tool_eval_type: "tool-calling-metric"  # For tool_calling workloads only
+```
+
+**Workload Type Options:**
+
+- **`"classification"`** (default): Forces classification evaluation using F1-score. Use for text classification, sentiment analysis, or any categorical labeling task.
+- **`"tool_calling"`**: Forces tool-calling evaluation using function name accuracy and exact match metrics. Use for agent workflows with function calls.
+- **`"auto"`**: Automatically detects workload type by analyzing your data. The system checks for `tool_calls` in response messages:
+  - If `tool_calls` are present → treated as `tool_calling` workload
+  - If no `tool_calls` → treated as `classification` workload
+
+**Auto-Detection Behavior:**
+
+When `workload_type: "auto"` is set, the system:
+1. Scans response messages in your logged data for `tool_calls` fields
+2. If any record contains `tool_calls` → classifies as `tool_calling`
+3. If no `tool_calls` found → classifies as `classification`
+4. Uses appropriate evaluation metrics based on detected type
+
+**Recommendation:** Use explicit `"classification"` or `"tool_calling"` for predictable behavior. Use `"auto"` when you have mixed workloads or want the system to adapt automatically.
+
+**Tool Eval Type** (for `tool_calling` workloads only):
+
+- **`"tool-calling-metric"`** (default): Uses exact match metrics (function name accuracy, function name and arguments accuracy)
+- **`"tool-calling-judge"`**: Uses LLM-as-judge for correctness rating (requires `llm_judge_config` to be configured)
 
 The `data_split_config` section controls evaluation processes:
 
@@ -328,9 +362,12 @@ data_split_config:
   parse_function_arguments: true
 ```
 
+> **Note**  
+> For this financial services variant, the configuration file sets `eval_size: 100`, which differs from the code default of `20`. The config file value is used when the configuration file is loaded. If you omit `data_split_config` in API requests, the service uses values from `config/config.yaml` (including `eval_size: 100`). If you include `data_split_config` in API requests, any omitted fields use the API schema defaults (code defaults, such as `eval_size: 20`).
+
 | Option | Description | Default | Notes |
 |--------|-------------|---------|-------|
-| `eval_size` | Number of examples for evaluation | 100 | Minimum size of evaluation set (stratified across tool types) |
+| `eval_size` | Number of examples for evaluation | 100 (config file), 20 (code default) | Minimum size of evaluation set (stratified across tool types). Config file default is 100 for this financial services variant. |
 | `val_ratio` | Ratio of data used for validation | 0.1 | Must be ≥ 0 and < 1 (10% of remaining data after eval, stratified) |
 | `min_total_records` | Minimum required records | 50 | Total dataset size requirement |
 | `random_seed` | Seed for reproducible splits | null | Set for reproducible results |

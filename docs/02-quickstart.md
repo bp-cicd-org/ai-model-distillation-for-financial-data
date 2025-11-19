@@ -57,7 +57,10 @@ To deploy NMP, follow the [NeMo Microservices Platform Prerequisites](https://do
 
 **Use Manual Installation Only**
 
-The AI Model Distillation for Financial Data developer example uses the NVIDIA Data Flywheel Blueprint to demonstrate how NVIDIA technology enables continuous model fine-tuning and distillation, enabling integration into financial workflows.
+The AI Model Distillation for Financial Data developer example is a financial services variant of the NVIDIA Data Flywheel Blueprint, adapted for financial news classification workloads. It demonstrates how NVIDIA technology enables continuous model fine-tuning and distillation, enabling integration into financial workflows.
+
+> **Note:** This is a financial services-specific variant of the Data Flywheel Blueprint, configured for classification workloads with F1-score evaluation.
+
 For the Data Flywheel Blueprint, use the [Install Manually](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/minikube-manual.html) option. The deployment scripts option should be avoided as it deploys models outside the namespace of the Data Flywheel and can cause conflict.
 
 **Use Override Values File (Bitnami Workaround)**

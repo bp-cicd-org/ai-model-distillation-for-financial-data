@@ -1,6 +1,6 @@
 # Task Orchestration and Workflow Management
 
-Learn how the developer example orchestrates complex workflows using Celery for task management, job lifecycle control, and resource cleanup.
+Learn how the AI Model Distillation for Financial Data developer example orchestrates complex workflows using Celery for task management, job lifecycle control, and resource cleanup for financial news classification workloads.
 
 ## Workflow Architecture
 
@@ -279,7 +279,7 @@ nvidia-smi
 curl "http://nemo.test/v1/models"
 
 # Check Kubernetes resources
-kubectl get pods -n dfwbp
+kubectl get pods -n dfwfd
 ```
 
 #### 3. **Evaluation Timeouts**

@@ -120,7 +120,7 @@ class EvaluationConfig(BaseModel):
     """Configuration for evaluation strategy"""
 
     workload_type: Literal["auto", "classification", "tool_calling"] = Field(
-        default="auto",
+        default="classification",
         description="Workload type: 'auto' (auto-detect), 'classification' (F1 score), or 'tool_calling' (function metrics)",
     )
     tool_eval_type: Literal["tool-calling-metric", "tool-calling-judge"] = Field(
@@ -153,7 +153,7 @@ class MLflowConfig(BaseModel):
     )
     tracking_uri: str = Field(default="http://0.0.0.0:5000", description="MLflow tracking URI")
     experiment_name_prefix: str = Field(
-        default="data-flywheel", description="Prefix for experiment names"
+        default="findistil", description="Prefix for experiment names"
     )
     artifact_location: str = Field(default="./mlruns", description="Location for MLflow artifacts")
 

@@ -26,16 +26,16 @@ The AI Model Distillation for Financial Data developer exampleprovides a compreh
 | **Helm** | 3.8+ | Chart installation and management | Required |
 | **kubectl** | Latest | Cluster interaction and verification | Required |
 | **NGC API key** | Current | Access to NVIDIA container registry and models | Required |
-| **NVIDIA API key** | Current | Remote LLM judge access via NVIDIA API catalog | Required |
+| **NVIDIA API key** | Current | Remote NIM access and remote LLM judge access (only needed for tool-calling-judge evaluation, not classification) | Required |
 | **Hugging Face token** | Current | Model and dataset access | Required |
-| **LLM Judge API key** | Current | API key for remote LLM judge services | Optional |
+| **LLM Judge API key** | Current | API key for remote LLM judge services (only needed for tool-calling-judge evaluation, not classification) | Optional |
 | **EMB API Key** | Current | Model API key for remote embedding services | Optional |
 
 > **📖 For API key setup instructions:** See [Required API Keys and Access](03-configuration.md#required-api-keys-and-access)
 
 #### NVIDIA API Key Source
 
-To get your **NVIDIA API key**, visit [build.nvidia.com](https://build.nvidia.com) and generate an API key for accessing NVIDIA's API catalog and remote LLM services.
+To get your **NVIDIA API key**, visit [build.nvidia.com](https://build.nvidia.com) and generate an API key for accessing NVIDIA's API catalog and remote NIM services. Note: Remote LLM judge access is only needed if you're using tool-calling-judge evaluation (not for classification workloads, which is the default).
 
 ### Environment Verification
 
@@ -91,8 +91,8 @@ The Data Flywheel Blueprint Helm chart uses a `values.yaml` file that defines al
 
 ```bash
 # Clone the repository
-git clone https://github.com/NVIDIA-AI-Blueprints/data-flywheel.git
-cd data-flywheel
+git clone https://github.com/NVIDIA-AI-Blueprints/ai-model-distillation-for-financial-data.git
+cd ai-model-distillation-for-financial-data
 
 # Install Git LFS if not already installed
 git lfs install

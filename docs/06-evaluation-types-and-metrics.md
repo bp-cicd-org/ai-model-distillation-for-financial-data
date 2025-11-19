@@ -57,8 +57,61 @@ Scores range from 0 to 1, where:
 - **0.0** = No overlap with teacher model's response
 - **Higher scores** = Better alignment between student and teacher outputs
 
+## Workload Types and Metrics
+
+The system supports two workload types, each with different evaluation metrics:
+
+### Classification Workloads
+
+Classification workloads use **F1-score** as the primary evaluation metric. This is the default for the financial services variant.
+
+**Metrics:**
+- **F1-Score**: Measures how well the student model's classification responses match the teacher model's responses
+
+**Use Cases:**
+- News classification (e.g., financial news sentiment analysis)
+- Text categorization tasks
+- Any task where responses are categorical labels
+
+### Tool-Calling Workloads
+
+Tool-calling workloads use multiple metrics to evaluate function call accuracy and correctness.
+
+**Metrics:**
+- **Function Name Accuracy**: Percentage of correct function names in tool calls
+- **Function Name and Arguments Accuracy**: Percentage of tool calls with both correct function name and arguments
+- **Tool Calling Correctness** (optional): LLM-as-judge rating for overall correctness (requires `tool_eval_type: "tool-calling-judge"`)
+
+**Use Cases:**
+- Agent tool routing
+- Function calling workflows
+- Multi-step agent tasks
+
+**Configuration:**
+To use tool-calling evaluation, set `workload_type: "tool_calling"` in your configuration file or use auto-detection (the system detects tool calls in your data).
+
 ## Evaluation Results Format
 
-Evaluation results are returned in a consistent structure. Each result includes metadata (such as evaluation type, timestamps, and progress) and a `scores` dictionary containing the F1-score metric.
+Evaluation results are returned in a consistent structure. Each result includes metadata (such as evaluation type, timestamps, and progress) and a `scores` dictionary containing the relevant metrics:
+
+**For Classification Workloads:**
+```json
+{
+  "scores": {
+    "f1_score": 0.85
+  }
+}
+```
+
+**For Tool-Calling Workloads:**
+```json
+{
+  "scores": {
+    "function_name": 0.92,
+    "function_name_and_args_accuracy": 0.88,
+    "tool_calling_correctness": 0.90
+  }
+}
+```
 
 

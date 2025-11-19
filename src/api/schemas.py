@@ -100,8 +100,8 @@ class JobResponse(BaseModel):
     status: str = Field(
         ...,
         description="Current status of the job",
-        examples=["queued"],
-        enum=["queued", "running", "completed", "failed"],
+        examples=["pending"],
+        enum=["pending", "running", "completed", "failed", "cancelled"],
     )
     message: str = Field(
         ...,
