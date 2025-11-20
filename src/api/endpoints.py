@@ -73,7 +73,7 @@ async def create_job(request: JobRequest) -> JobResponse:
         else None,
     )
 
-    return JobResponse(id=flywheel_run.id, status="pending", message="NIM workflow started")
+    return JobResponse(id=flywheel_run.id, status="queued", message="NIM workflow started")
 
 
 @router.get("/jobs", response_model=JobsListResponse)

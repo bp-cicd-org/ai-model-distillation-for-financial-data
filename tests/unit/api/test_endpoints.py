@@ -586,7 +586,7 @@ class TestEndpointsIntegration:
 
         # Verify job creation
         assert create_response.id == str(job_id)
-        assert create_response.status == "queued"
+        assert create_response.status == "pending"
 
         # Setup mocks for get_jobs
         mock_docs = [

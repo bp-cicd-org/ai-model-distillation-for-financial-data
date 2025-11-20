@@ -51,7 +51,7 @@ Creates a new flywheel job that runs the complete NIM workflow including data ex
 ```json
 {
   "id": "507f1f77bcf86cd799439011",
-  "status": "pending",
+  "status": "queued",
   "message": "NIM workflow started"
 }
 ```
@@ -82,7 +82,7 @@ Retrieves a list of all flywheel jobs with their current status and basic inform
       "id": "507f1f77bcf86cd799439011",
       "workload_id": "news_classifier", 
       "client_id": "financial-news-dataset",
-      "status": "pending",
+      "status": "queued",
       "started_at": "2024-01-15T10:30:00Z",
       "finished_at": null,
       "datasets": [
@@ -227,7 +227,7 @@ curl -X DELETE "http://localhost:8000/api/jobs/507f1f77bcf86cd799439011"
 
 | Status | Description |
 |--------|-------------|
-| `pending` | Job is queued and waiting to start |
+| `queued` | Job is queued and waiting to start |
 | `running` | Job is actively executing workflow stages |
 | `completed` | Job finished successfully |
 | `cancelled` | Job was manually cancelled |
