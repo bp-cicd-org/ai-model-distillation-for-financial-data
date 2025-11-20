@@ -45,17 +45,17 @@ nims:
       gpus: 1
       max_seq_length: 8192
 
-  - model_name: "meta/llama-3.1-8b-instruct"
-    model_type: "llm"
-    context_length: 8192
-    gpus: 1
-    pvc_size: 25Gi
-    tag: "1.8.3"
-    customization_enabled: true
-    customizer_configs:
-      target: "meta/llama-3.1-8b-instruct@2.0"
-      gpus: 1
-      max_seq_length: 8192
+#  - model_name: "meta/llama-3.1-8b-instruct"
+#    model_type: "llm"
+#    context_length: 8192
+#    pvc_size: 25Gi
+#    tag: "1.8.3"
+#    gpus: 1
+#    customization_enabled: true
+#    customizer_configs:
+#      target: "meta/llama-3.1-8b-instruct@2.0"
+#      gpus: 1
+#      max_seq_length: 8192
 # Data split config:
 # train, val, eval split sizes and ratios
 data_split_config:
@@ -75,11 +75,16 @@ evaluation_config:
   # - auto: Automatically detect based on presence of tool_calls in data
   # - classification: Force use of classification evaluation (F1 score for chat completion)
   # - tool_calling: Force use of tool calling evaluation (function name accuracy, etc.)
+  # 
+  # NOTE: This financial data example uses classification workloads.
+  # Setting workload_type to "tool_calling" will cause the job to fail if your data
+  # doesn't contain tool_calls in the response messages.
   workload_type: "classification"
   
-  # For tool_calling workloads, specify which evaluation type to use:
+  # For tool_calling workloads ONLY, specify which evaluation type to use:
   # - tool-calling-metric: Use exact match metrics (function name, args)
   # - tool-calling-judge: Use LLM-as-judge for correctness (requires llm_judge_config)
+  # NOTE: This setting is ignored for classification workloads (like this financial example)
   tool_eval_type: "tool-calling-metric"
 
 # Training config:
