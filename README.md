@@ -132,9 +132,10 @@ This financial services variant is optimized for classification workloads. Key d
 
 ### 2. Workload Type Configuration
 
-**Both Variants**: Default `workload_type: "auto"` (auto-detects based on data). The system automatically detects workload type by checking for `tool_calls` in response messages. You can explicitly set `"classification"` or `"tool_calling"` if needed.
+**Original Blueprint**: Default `workload_type: "auto"` (auto-detects based on data).  
+**Financial Variant**: Default `workload_type: "classification"` in `config/config.yaml`. Still supports tool-calling when configured.
 
-**Configuration**: `config/config.yaml` → `evaluation_config.workload_type: "auto"`
+**Configuration**: `config/config.yaml` → `evaluation_config.workload_type: "classification"`
 
 ### 3. Evaluation Dataset Size
 

@@ -311,7 +311,7 @@ Note: Not all models may be enabled by default in the configuration. Enable them
 ## Evaluation Settings
 
 > **Note**  
-> The default `workload_type: "auto"` automatically detects the workload type by analyzing your data. If you need to force a specific evaluation type, you can set `workload_type: "classification"` for F1-score based evaluation or `workload_type: "tool_calling"` for function-based metrics.
+> This financial services variant uses `workload_type: "classification"` in the configuration file (`config/config.yaml`), which overrides the code default of `"auto"`. This enables F1-score based evaluation for chat-completion workloads. Tool-calling workflows remain supported when configured. The config file value takes precedence over the code default when the configuration file is loaded.
 
 ### Workload Type Configuration
 
@@ -319,7 +319,7 @@ The `evaluation_config` section controls how workloads are evaluated:
 
 ```yaml
 evaluation_config:
-  workload_type: "auto"  # Options: "auto", "classification", "tool_calling"
+  workload_type: "classification"  # Options: "auto", "classification", "tool_calling"
   tool_eval_type: "tool-calling-metric"  # For tool_calling workloads only
 ```
 

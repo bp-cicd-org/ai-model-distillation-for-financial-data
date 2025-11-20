@@ -75,7 +75,7 @@ evaluation_config:
   # - auto: Automatically detect based on presence of tool_calls in data
   # - classification: Force use of classification evaluation (F1 score for chat completion)
   # - tool_calling: Force use of tool calling evaluation (function name accuracy, etc.)
-  workload_type: "auto"
+  workload_type: "classification"
   
   # For tool_calling workloads, specify which evaluation type to use:
   # - tool-calling-metric: Use exact match metrics (function name, args)
