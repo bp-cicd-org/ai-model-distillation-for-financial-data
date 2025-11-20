@@ -448,6 +448,11 @@ class Settings(BaseSettings):
                 if "mlflow_config" in config_data
                 else MLflowConfig()
             )
+            evaluation_config = (
+                EvaluationConfig(**config_data.get("evaluation_config", {}))
+                if "evaluation_config" in config_data
+                else EvaluationConfig()
+            )
 
             # Deduplicate NIMs by model_name
             # we should have only unique NIMs in the config
@@ -477,6 +482,7 @@ class Settings(BaseSettings):
                 nims=[NIMConfig(**nim) for nim in unique_nims],
                 training_config=training_config,
                 data_split_config=DataSplitConfig(**config_data["data_split_config"]),
+                evaluation_config=evaluation_config,
                 icl_config=icl_config,
                 logging_config=logging_config,
                 mlflow_config=mlflow_config,
