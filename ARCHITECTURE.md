@@ -1,7 +1,7 @@
 # Data Flywheel Blueprint Architecture
 
 ## Overview
-The Data Flywheel Blueprint is a comprehensive system designed to automate and optimize the evaluation and fine-tuning of Large Language Models (LLMs) through a continuous feedback loop. This document outlines the core architectural components and their interactions.
+The [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) is a comprehensive system designed to automate and optimize the evaluation and fine-tuning of Large Language Models (LLMs) through a continuous feedback loop. This document outlines the core architectural components and their interactions.
 
 ## System Architecture Diagram
 

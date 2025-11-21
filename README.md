@@ -1,6 +1,6 @@
 # AI Model Distillation for Financial Data Developer Example
 
-> **Note:** This is a financial services variant of the NVIDIA Data Flywheel Foundational Blueprint, specifically configured for financial news classification workloads with F1-score evaluation. The underlying architecture and core functionality remain based on the Data Flywheel Blueprint.
+> **Note:** This is a financial services variant of the [NVIDIA Data Flywheel Foundational Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel), specifically configured for financial news classification workloads with F1-score evaluation. The underlying architecture and core functionality remain based on the [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel).
 
 **Deploy a production-grade Data Flywheel service** that uses NVIDIA NeMo Microservices to continuously discover and promote more efficient models for financial data analysis. Get started in minutes: [Quickstart Guide](./docs/02-quickstart.md)
 
@@ -99,7 +99,7 @@ In just a few hours, this automated process built on top of NeMo microservices c
 
 With reasonable defaults, the system automatically narrows a vast number of possible options down to a manageable set of promising candidates for further analysis—no manual experiment design required.
 
-**👆 This is the key insight of the Data Flywheel Blueprint built on top of NeMo microservices**.
+**👆 This is the key insight of the [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) built on top of NeMo microservices**.
 
 You can scale this process across any number of NIMs by using NeMo Deployment Manager to dynamically start and stop NIMs as needed, so you don't have to keep every NIM running at all times. This cycle can be repeated as frequently as desired: daily, weekly, or on your own schedule.
 
@@ -107,11 +107,11 @@ Data Flywheels are a fledgling concept in Generative AI, but already real-world 
 
 ---
 
-## Differences from the Data Flywheel Foundational Blueprint
+## Differences from the [Data Flywheel Foundational Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel)
 
 This financial services variant is optimized for classification workloads. Key differences:
 
-| Aspect | Data Flywheel Blueprint | Financial Services Variant |
+| Aspect | [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) | Financial Services Variant |
 |--------|------------------------|---------------------------|
 | **Default Workload Type** | `"auto"` | `"classification"` |
 | **Evaluation Metric** | LLM-as-judge similarity | F1-score |
@@ -125,45 +125,45 @@ This financial services variant is optimized for classification workloads. Key d
 
 ### 1. Evaluation Metrics: F1-Score for Classification
 
-**Original Blueprint**: Uses LLM-as-judge similarity metrics (range `[0, 1]`) for tool-calling workloads.  
+**Original Blueprint**: [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) uses LLM-as-judge similarity metrics (range `[0, 1]`) for tool-calling workloads.  
 **Financial Variant**: Uses F1-score for classification workloads. Evaluates by comparing classification labels against ground truth.
 
 **Impact**: Results show F1-scores instead of similarity scores. Higher F1-scores (closer to 1.0) indicate better classification accuracy.
 
 ### 2. Workload Type Configuration
 
-**Original Blueprint**: Default `workload_type: "auto"` (auto-detects based on data).  
+**Original Blueprint**: [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) default `workload_type: "auto"` (auto-detects based on data).  
 **Financial Variant**: Default `workload_type: "classification"` in `config/config.yaml`. Still supports tool-calling when configured.
 
 **Configuration**: `config/config.yaml` → `evaluation_config.workload_type: "classification"`
 
 ### 3. Evaluation Dataset Size
 
-**Original Blueprint**: Default `eval_size: 20` examples.  
+**Original Blueprint**: [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) default `eval_size: 20` examples.  
 **Financial Variant**: Default `eval_size: 100` examples for more robust classification assessment.
 
 **Configuration**: `config/config.yaml` → `data_split_config.eval_size: 100`
 
 ### 4. Namespace Configuration
 
-**Original Blueprint**: Default namespace `"dfwbp"` (Data Flywheel Blueprint).  
+**Original Blueprint**: Default namespace `"dfwbp"` ([Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel)).  
 **Financial Variant**: Default namespace `"dfwfd"` (Data Flywheel Financial Distillation).
 
 **Configuration**: `config/config.yaml` → `nmp_config.nmp_namespace: "dfwfd"`
 
 ### 5. Use Case Focus
 
-**Original Blueprint**: General-purpose agent workloads, tool-calling (e.g., HR chatbot).  
+**Original Blueprint**: [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) general-purpose agent workloads, tool-calling (e.g., HR chatbot).  
 **Financial Variant**: Financial news classification (e.g., "Analyst Rating", "Stock price movement", "Regulatory"). Designed for alpha research and risk prediction.
 
 ### 6. Model Evaluation Approach
 
-**Original Blueprint**: Compares responses using LLM-as-judge similarity.  
+**Original Blueprint**: [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) compares responses using LLM-as-judge similarity.  
 **Financial Variant**: Compares classification labels using F1-score. Uses teacher model responses as ground truth.
 
 ### 7. Score Interpretation
 
-**Original Blueprint**: Scores are similarity metrics `[0, 1]` indicating semantic similarity.  
+**Original Blueprint**: [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) scores are similarity metrics `[0, 1]` indicating semantic similarity.  
 **Financial Variant**: Scores are F1-scores `[0, 1]` indicating classification accuracy (balances precision and recall).
 
 **Note:** All differences are configurable. Switch back to tool-calling by setting `workload_type: "tool_calling"` or use auto-detection with `workload_type: "auto"`.
@@ -334,10 +334,11 @@ Real-world tests within NVIDIA show **cost reductions of up to 98.6%** while mai
 
 **Data Flywheel Blueprint Documentation:**
 * [Complete Documentation Guide](./docs/README.md) - Role-based navigation and comprehensive documentation index
+* [Original Data Flywheel Blueprint Repository](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) - Source code and documentation for the foundational blueprint
 
 **External Resources:**
 * [Scale Financial Data Workflows With AI Model Distillation Using the NVIDIA Data Flywheel Blueprint](https://developer.nvidia.com/blog/) - Technical blog post covering this financial services variant
-* [Enhance Your AI Agent with Data Flywheels Using NVIDIA NeMo Microservices](https://developer.nvidia.com/blog/enhance-your-ai-agent-with-data-flywheels-using-nvidia-nemo-microservices/) - General Data Flywheel Blueprint overview
+* [Enhance Your AI Agent with Data Flywheels Using NVIDIA NeMo Microservices](https://developer.nvidia.com/blog/enhance-your-ai-agent-with-data-flywheels-using-nvidia-nemo-microservices/) - General [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) overview
 * [Overview of NeMo Microservices](https://docs.nvidia.com/nemo/microservices/latest/about/index.html) - NeMo Microservices Platform documentation
 * [Enterprises Onboard AI Teammates Faster With NVIDIA NeMo Tools to Scale Employee Productivity](https://blogs.nvidia.com/blog/nemo-enterprises-ai-teammates-employee-productivity/) - Enterprise use cases
 
@@ -375,7 +376,7 @@ Real-world tests within NVIDIA show **cost reductions of up to 98.6%** while mai
 
 ### Design Philosophy
 
-The Data Flywheel Foundational Blueprint empowers organizations to accelerate the optimization of AI models for cost and performance. Rather than offering a one-size-fits-all solution, this blueprint provides a practical framework and proven tools to guide your journey toward more efficient, production-ready models.
+The [Data Flywheel Foundational Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) empowers organizations to accelerate the optimization of AI models for cost and performance. Rather than offering a one-size-fits-all solution, this blueprint provides a practical framework and proven tools to guide your journey toward more efficient, production-ready models.
 
 1. **Reference Implementation for Real-World Impact**
    This blueprint demonstrates the capabilities of NeMo Microservices, providing a foundation you can adapt and extend to meet your specific production requirements.
@@ -395,7 +396,7 @@ The Data Flywheel Foundational Blueprint empowers organizations to accelerate th
    - Supports enhanced workload descriptions for improved future classification.
    - Leverages robust infrastructure—including Elasticsearch, MongoDB, Redis, and NeMo microservices—to store data, build datasets, run evaluations, fine-tune models, and re-evaluate results.
 
-To get the most value from the Data Flywheel Foundational Blueprint, ensure you have:
+To get the most value from the [Data Flywheel Foundational Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel), ensure you have:
 
 - An existing generative AI application in production.
 - Logging of prompt/completion traffic, with workload tagging (such as routes, nodes, or agent steps).
@@ -541,7 +542,7 @@ The software and materials are governed by:
 
 ## Disclaimer
 
-The Data Flywheel Blueprint is shared as reference and provided "as is". Production security is the responsibility of end users. When deploying in production:
+The [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) is shared as reference and provided "as is". Production security is the responsibility of end users. When deploying in production:
 - Have security experts review potential risks and threats
 - Define trust boundaries
 - Implement logging and monitoring capabilities

@@ -55,16 +55,16 @@ Authenticate with NGC using `NGC login`. For detailed instructions, see the [NGC
 To deploy NMP, follow the [NeMo Microservices Platform Prerequisites](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/index.html) beginner tutorial. These instructions launch NMP using a local Minikube cluster.
 
 > **Note**
-> Data Flywheel Blueprint, on which the AI Model Distillation for Financial Data Developer Example is developed, has been tested and is compatible with NeMo Microservices Platform (NMP) version 25.8.0.
+> [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel), on which the AI Model Distillation for Financial Data Developer Example is developed, has been tested and is compatible with NeMo Microservices Platform (NMP) version 25.8.0.
 
 **Use Manual Installation Only**
 
-The AI Model Distillation for Financial Data developer example is a financial services variant of the NVIDIA Data Flywheel Blueprint, adapted for financial news classification workloads. It demonstrates how NVIDIA technology enables continuous model fine-tuning and distillation, enabling integration into financial workflows.
+The AI Model Distillation for Financial Data developer example is a financial services variant of the [NVIDIA Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel), adapted for financial news classification workloads. It demonstrates how NVIDIA technology enables continuous model fine-tuning and distillation, enabling integration into financial workflows.
 
-> **Note:** This is a financial services-specific variant of the Data Flywheel Blueprint, configured for classification workloads with F1-score evaluation.
+> **Note:** This is a financial services-specific variant of the [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel), configured for classification workloads with F1-score evaluation.
 
 
-For the Data Flywheel Blueprint, use the [Install Manually](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/minikube-manual.html) option. The deployment scripts option should be avoided as it deploys models outside the namespace of the Data Flywheel and can cause conflict.
+For the [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel), use the [Install Manually](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/minikube-manual.html) option. The deployment scripts option should be avoided as it deploys models outside the namespace of the Data Flywheel and can cause conflict.
 
 **Use Override Values File (Bitnami Workaround)**
 

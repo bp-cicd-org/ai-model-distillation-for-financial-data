@@ -10,7 +10,7 @@ With a self-reinforcing data flywheel, these models are iteratively distilled an
 
 ## How it Works
 
-We provide a reusable recipe to experiment and train these distilled models using the [NVIDIA Data Flywheel Blueprint](https://developer.nvidia.com/blog/build-efficient-ai-agents-through-model-distillation-with-nvidias-data-flywheel-blueprint/). At the heart of the blueprint is the flywheel orchestrator, a unified control plane that abstracts the complexity of interacting directly with NVIDIA NeMo microservices. Acting as the brain of the flywheel system, the orchestrator API coordinates the data flywheel job by leveraging a suite of modular [NeMo microservices](https://docs.nvidia.com/nemo/microservices/latest/index.html): 
+We provide a reusable recipe to experiment and train these distilled models using the [NVIDIA Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel). At the heart of the blueprint is the flywheel orchestrator, a unified control plane that abstracts the complexity of interacting directly with NVIDIA NeMo microservices. Acting as the brain of the flywheel system, the orchestrator API coordinates the data flywheel job by leveraging a suite of modular [NeMo microservices](https://docs.nvidia.com/nemo/microservices/latest/index.html): 
 - NVIDIA NeMo Customizer to handle lightweight LoRA-based fine-tuning
 - NVIDIA NeMo Evaluator to automate evaluations across runs
 - NeMo Datastore to manage structured datasets and artifacts
