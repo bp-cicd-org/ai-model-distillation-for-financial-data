@@ -8,13 +8,11 @@ services:
       target: dev
     ports:
       - "8000:8000"
-    env_file:
-      - .env
     environment:
       - ELASTICSEARCH_URL=http://localhost:9200
       - ES_COLLECTION_NAME=${ES_COLLECTION_NAME:-flywheel}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme123}@localhost:6379/0
-      - MONGODB_URL=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-changeme123}@localhost:27017
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@localhost:6379/0
+      - MONGODB_URL=mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@localhost:27017
       - MONGODB_DB=flywheel
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - LLM_JUDGE_API_KEY=${LLM_JUDGE_API_KEY:-${NVIDIA_API_KEY}}
@@ -39,13 +37,11 @@ services:
       context: ..
       dockerfile: ./deploy/Dockerfile
       target: dev
-    env_file:
-      - .env
     environment:
       - ELASTICSEARCH_URL=http://localhost:9200
       - ES_COLLECTION_NAME=${ES_COLLECTION_NAME:-flywheel}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme123}@localhost:6379/0
-      - MONGODB_URL=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-changeme123}@localhost:27017
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@localhost:6379/0
+      - MONGODB_URL=mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@localhost:27017
       - MONGODB_DB=flywheel
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - LLM_JUDGE_API_KEY=${LLM_JUDGE_API_KEY:-${NVIDIA_API_KEY}}
@@ -72,13 +68,11 @@ services:
       context: ..
       dockerfile: ./deploy/Dockerfile
       target: dev
-    env_file:
-      - .env
     environment:
       - ELASTICSEARCH_URL=http://localhost:9200
       - ES_COLLECTION_NAME=${ES_COLLECTION_NAME:-flywheel}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme123}@localhost:6379/0
-      - MONGODB_URL=mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-changeme123}@localhost:27017
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@localhost:6379/0
+      - MONGODB_URL=mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@localhost:27017
       - MONGODB_DB=flywheel
       - NVIDIA_API_KEY=${NVIDIA_API_KEY}
       - LLM_JUDGE_API_KEY=${LLM_JUDGE_API_KEY:-${NVIDIA_API_KEY}}
@@ -109,9 +103,7 @@ services:
       - "6379:6379"  # Bind to localhost only
     volumes:
       - redis-data:/data
-    env_file:
-      - .env
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-changeme123}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     restart: always
 
   mongodb:
@@ -120,19 +112,17 @@ services:
       - "27017:27017"  # Bind to localhost only
     volumes:
       - mongodb-data:/data/db
-    env_file:
-      - .env
     environment:
       - MONGO_LOG_LEVEL=error
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME:-admin}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD:-changeme123}
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
     command: >
       mongod --quiet --auth
       --setParameter diagnosticDataCollectionEnabled=false
       --setParameter logComponentVerbosity='{ "network": { "verbosity": 0 }, "command": { "verbosity": 0 }, "control": { "verbosity": 0 } }'
     restart: always
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/admin --quiet -u ${MONGO_USERNAME:-admin} -p ${MONGO_PASSWORD:-changeme123}
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/admin --quiet -u ${MONGO_USERNAME} -p ${MONGO_PASSWORD}
       interval: 10s
       timeout: 10s
       retries: 5
