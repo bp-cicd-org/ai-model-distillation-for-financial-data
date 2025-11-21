@@ -56,15 +56,15 @@ Examples:
 
 **Full Model Identifier Format**: The actual model identifier includes the namespace and revision:
 ```
-dfwbp/customized-meta-llama-3.2-1b-instruct@cust-DbcC6k3UH3iDhfnhats9ZP
+dfwfd/customized-meta-llama-3.2-1b-instruct@cust-DbcC6k3UH3iDhfnhats9ZP
 ```
 
 Where:
-- `dfwbp` is the namespace
+- `dfwfd` is the namespace (Data Flywheel Financial Distillation)
 - `customized-meta-llama-3.2-1b-instruct` is the model name
 - `cust-DbcC6k3UH3iDhfnhats9ZP` is the auto-generated revision
 
-**Namespace**: flywheel stores models in the `dfwbp` namespace by default (configurable via `nmp_namespace` in flywheel configuration). The namespace is included in the `customized_model` field returned by the job details API.
+**Namespace**: flywheel stores models in the `dfwfd` namespace (Data Flywheel Financial Distillation) for this financial services variant (as configured in `config/config.yaml`). The config file default is `dfwfd` for this financial services variant, while the code default is `dfwbp`. **Note:** The config file value takes precedence over the code default when the configuration file is loaded. The namespace is configurable via `nmp_namespace` in the configuration file and is included in the `customized_model` field returned by the job details API.
 
 **Source**: `src/tasks/tasks.py:790`
 
@@ -83,21 +83,21 @@ Call the job details API to retrieve your customized model information:
 ```bash
 # Replace {job_id} with your actual job ID
 JOB_ID="your_job_id_here"
-curl -X GET "http://your-dfwbp-api-url/jobs/$JOB_ID"
+curl -X GET "http://your-api-url/jobs/$JOB_ID"
 ```
 
 ### Extract Namespace, Model Name and Revision
 
 Look for the `customized_model` field in the response. It will have this format:
 ```
-dfwbp/customized-meta-llama-3.2-1b-instruct@cust-DbcC6k3UH3iDhfnhats9ZP
+dfwfd/customized-meta-llama-3.2-1b-instruct@cust-DbcC6k3UH3iDhfnhats9ZP
 ```
 
 Extract the namespace, model name, and revision:
 
 ```bash
 # Example response parsing (using jq)
-CUSTOMIZED_MODEL=$(curl -s "http://your-dfwbp-api-url/jobs/$JOB_ID" | jq -r '.nims[0].customizations[0].customized_model')
+CUSTOMIZED_MODEL=$(curl -s "http://your-api-url/jobs/$JOB_ID" | jq -r '.nims[0].customizations[0].customized_model')
 
 # Split at @ symbol to get model part and revision
 MODEL_PART=$(echo "$CUSTOMIZED_MODEL" | cut -d'@' -f1)
@@ -255,7 +255,7 @@ export HF_ENDPOINT="https://datastore.int.aire.nvidia.com/v1/hf"
 
 # 2. Get job details and extract model information
 JOB_ID="your_job_id_here"
-CUSTOMIZED_MODEL=$(curl -s "http://your-dfwbp-api-url/jobs/$JOB_ID" | jq -r '.nims[0].customizations[0].customized_model')
+CUSTOMIZED_MODEL=$(curl -s "http://your-api-url/jobs/$JOB_ID" | jq -r '.nims[0].customizations[0].customized_model')
 
 # Extract namespace, model name and revision
 MODEL_PART=$(echo "$CUSTOMIZED_MODEL" | cut -d'@' -f1)

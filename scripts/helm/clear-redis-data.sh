@@ -5,7 +5,7 @@
 set -e
 
 # Configuration
-NAMESPACE="${NAMESPACE:-nv-nvidia-blueprint-data-flywheel}"
+NAMESPACE="${NAMESPACE:-nv-nvidia-blueprint-ai-model-distillation-financial-data}"
 
 echo "🔄 Clearing Redis data in namespace: $NAMESPACE"
 

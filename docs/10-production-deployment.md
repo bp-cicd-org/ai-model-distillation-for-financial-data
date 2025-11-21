@@ -1,18 +1,18 @@
 # Production Deployment and Operations Guide
 
-Learn how to deploy and operate the developer example in production environments using Kubernetes, with comprehensive monitoring, scaling, and disaster recovery strategies.
+Learn how to deploy and operate the AI Model Distillation for Financial Data developer example in production environments using Kubernetes, with comprehensive monitoring, scaling, and disaster recovery strategies.
 
 > **📖 For prerequisites and system requirements:** Refer to [System Requirements](03-configuration.md#system-requirements)
 > **📖 For environment setup:** Refer to [Environment Variables](03-configuration.md#environment-variables)
 
 ## Production Architecture Overview
 
-The developer example supports production deployment on Kubernetes clusters. The following architecture shows how components work together:
+The AI Model Distillation for Financial Data developer example supports production deployment on Kubernetes clusters. The following architecture shows how components work together for financial news classification workloads:
 
 ```mermaid
 graph TB
     subgraph "Kubernetes Cluster"
-        subgraph "Data Flywheel Namespace"
+        subgraph "AI Model Distillation Namespace"
             API[API Server]
             CELERY[Celery Workers]
             FLOWER[Flower Monitor]
@@ -101,7 +101,7 @@ profile:
     COMPOSE_PROFILES: "mlflow"
 
 # Namespace isolation
-namespace: "nv-nvidia-blueprint-data-flywheel"
+namespace: "nv-nvidia-blueprint-ai-model-distillation-financial-data"
 
 # Secrets values - set these during deployment
 # Example: helm install data-flywheel . \
@@ -261,7 +261,7 @@ ingress-nginx                       Active   17m
 kube-node-lease                     Active   17m
 kube-public                         Active   17m
 kube-system                         Active   17m
-nv-nvidia-blueprint-data-flywheel   Active   17m
+nv-nvidia-blueprint-ai-model-distillation-financial-data   Active   17m
 volcano-monitoring                  Active   16m  👈
 volcano-system                      Active   16m  👈
 ```

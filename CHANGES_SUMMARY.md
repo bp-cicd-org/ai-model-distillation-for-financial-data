@@ -16,21 +16,27 @@
 
 ---
 
-## 2. Generic Workload Support (Chat Completion / Classification)
+## 2. Classification Workload Support (Chat Completion / Classification)
 
 ### Added Evaluation Configuration (`src/config.py`, `config/config.yaml`)
 
-**src/config.py (Lines 109-119)**:
+**src/config.py (Lines 119-129)**:
 ```python
 class EvaluationConfig(BaseModel):
-    workload_type: Literal["auto", "generic", "tool_calling"] = "auto"
-    tool_eval_type: Literal["tool-calling-metric", "tool-calling-judge"] = "tool-calling-metric"
+    workload_type: Literal["auto", "classification", "tool_calling"] = Field(
+        default="classification",
+        description="Workload type: 'auto' (auto-detect), 'classification' (F1 score), or 'tool_calling' (function metrics)",
+    )
+    tool_eval_type: Literal["tool-calling-metric", "tool-calling-judge"] = Field(
+        default="tool-calling-metric",
+        description="For tool_calling workloads: 'tool-calling-metric' (exact match) or 'tool-calling-judge' (LLM judge)",
+    )
 ```
 
-**config/config.yaml (Lines 78-89)**:
+**config/config.yaml (Lines 72-83)**:
 ```yaml
 evaluation_config:
-  workload_type: "auto"  # auto-detect, generic, or tool_calling
+  workload_type: "classification"  # auto-detect, classification, or tool_calling
   tool_eval_type: "tool-calling-metric"
 ```
 - **Reason**: Allow explicit control over evaluation strategy instead of implicit behavior
@@ -44,7 +50,7 @@ evaluation_config:
 
 ### Score Extraction Fixes
 
-**src/tasks/tasks.py (Lines 615-620)**:
+**src/tasks/tasks.py (Lines 636-639)**:
 ```python
 elif previous_result.workload_type == WorkloadClassification.GENERIC:
     if results["tasks"]["chat-completion"]:
@@ -52,12 +58,12 @@ elif previous_result.workload_type == WorkloadClassification.GENERIC:
 else:
     raise ValueError(f"Unsupported workload type: {previous_result.workload_type}")
 ```
-- **Changed from**: Trying to access `llm-as-judge` task (which doesn't exist for generic workloads)
+- **Changed from**: Trying to access `llm-as-judge` task (which doesn't exist for classification workloads)
 - **Changed to**: Extract F1 score from `chat-completion` task
-- **Reason**: Generic workloads use F1 score for classification, not LLM-as-judge
+- **Reason**: Classification workloads use F1 score for evaluation, not LLM-as-judge
 
 **src/lib/integration/mlflow_client.py**:
-- **Lines 220-224**: Changed task_key from `"llm-as-judge"` to `"chat-completion"` for generic workloads
+- **Lines 220-224**: Changed task_key from `"llm-as-judge"` to `"chat-completion"` for classification workloads
 - **Lines 144-156**: Extract `f1_score` from `f1` metrics instead of `similarity` from `llm-judge`
 - **Lines 283-291**: Updated metric columns to include `"f1_score"` instead of `"similarity"`
 - **Reason**: Align MLflow logging with correct evaluation metrics for classification tasks
@@ -76,7 +82,7 @@ if "f1_score" in all_scores:
 ### Adaptive Plotting Logic
 **Lines 138-198**: Updated plot generation to support both workload types
 - **Tool Calling**: 3 metrics (function name accuracy, exact match, LLM-judge)
-- **Generic**: 1 metric (F1 Score)
+- **Classification**: 1 metric (F1 Score)
 - **Grouped bar chart**: X-axis = Models, Grouped bars = BASE-EVAL vs CUSTOMIZED-EVAL
 - Auto-detects available metrics and adapts visualization accordingly
 
@@ -96,5 +102,5 @@ if "f1_score" in all_scores:
 4. **Visualization**: Unified plotting code that adapts to tool calling or classification metrics
 5. **Maintainability**: Explicit error handling for unsupported workload types
 
-All changes maintain backward compatibility with existing tool calling workloads while enabling support for generic classification tasks.
+All changes maintain backward compatibility with existing tool calling workloads while enabling support for classification tasks (using F1-score evaluation).
 

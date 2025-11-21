@@ -12,10 +12,12 @@ This quickstart provides an initial news headlines dataset to help you get start
 |-------------------------|---------|
 | Minimum GPU | 2× (NVIDIA A100/H100/H200/B200 GPUs) |
 | Cluster | Single-node NVIDIA GPU cluster on Linux with cluster-admin permissions |
-| Disk Space | At least 200 GB free |
+| Disk Space | At least 200 GB free (500 GB required for Minikube deployments) |
 | Software | Elasticsearch 8.12.2<br>MongoDB 7.0<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing)<br>MLflow 2.22.0<br>Wandb 0.22.3 |
 
 > **📖 For complete system requirements:** See [System Requirements](03-configuration.md#system-requirements)
+
+> **Note:** If you're deploying NMP using Minikube (as described in the [NeMo Microservices Platform Prerequisites](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/index.html)), Minikube requires 500 GB of disk space to handle large container images. The deployment script (`scripts/deploy-nmp.sh`) automatically configures this requirement.
 
 ### Obtain an NGC API Key and Log In
 
@@ -53,12 +55,16 @@ Authenticate with NGC using `NGC login`. For detailed instructions, see the [NGC
 To deploy NMP, follow the [NeMo Microservices Platform Prerequisites](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/index.html) beginner tutorial. These instructions launch NMP using a local Minikube cluster.
 
 > **Note**
-> Data Flywheel Blueprint, on which the AI Model Distillation for Financial Data Developer Example is developed, has been tested and is compatible with NeMo Microservices Platform (NMP) version 25.8.0.
+> [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel), on which the AI Model Distillation for Financial Data Developer Example is developed, has been tested and is compatible with NeMo Microservices Platform (NMP) version 25.8.0.
 
 **Use Manual Installation Only**
 
-The AI Model Distillation for Financial Data developer example uses the NVIDIA Data Flywheel Blueprint to demonstrate how NVIDIA technology enables continuous model fine-tuning and distillation, enabling integration into financial workflows.
-For the Data Flywheel Blueprint, use the [Install Manually](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/minikube-manual.html) option. The deployment scripts option should be avoided as it deploys models outside the namespace of the Data Flywheel and can cause conflict.
+The AI Model Distillation for Financial Data developer example is a financial services variant of the [NVIDIA Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel), adapted for financial news classification workloads. It demonstrates how NVIDIA technology enables continuous model fine-tuning and distillation, enabling integration into financial workflows.
+
+> **Note:** This is a financial services-specific variant of the [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel), configured for classification workloads with F1-score evaluation.
+
+
+For the [Data Flywheel Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel), use the [Install Manually](https://docs.nvidia.com/nemo/microservices/25.8.0/get-started/setup/minikube-manual.html) option. The deployment scripts option should be avoided as it deploys models outside the namespace of the Data Flywheel and can cause conflict.
 
 **Use Override Values File (Bitnami Workaround)**
 
@@ -283,8 +289,8 @@ To submit your own custom dataset, provide the loader with a file in [JSON Lines
     ]
   },
   "workload_id": "news_classifier",
-  "client_id": "<DATASET ID>", # dataset identifier in the flywheel server
-  "timestamp": 1760845128 #timestamp when dataset was last updated
+  "client_id": "<DATASET ID>",
+  "timestamp": 1760845128
 }
 ```
 
@@ -309,13 +315,13 @@ Now that you've got the developer example running and loaded with data, you can 
 ```bash
 curl -X POST http://localhost:8000/api/jobs \
 -H "Content-Type: application/json" \
--d '{"workload_id": "news_classifier", "client_id": "<DATASET ID>", # dataset identifier in the flywheel server}'
+-d '{"workload_id": "news_classifier", "client_id": "<DATASET ID>"}'
 ```
 
 #### Check Job Status
 
 ```bash
-curl -X GET http://localhost:8000/api/jobs/:job-id -H "Content-Type: application/json"
+curl -X GET http://localhost:8000/api/jobs/{job_id} -H "Content-Type: application/json"
 ```
 
 > **📖 For complete API documentation:** See [API Reference](07-api-reference.md)

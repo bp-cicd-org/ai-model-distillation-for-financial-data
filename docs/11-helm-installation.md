@@ -4,7 +4,7 @@ Learn how to deploy the AI Model Distillation for Financial Data developer examp
 
 ## Overview
 
-The AI Model Distillation for Financial Data developer exampleprovides a comprehensive Helm chart for Kubernetes deployment, enabling scalable data processing workflows with integrated NeMo microservices, experiment tracking, and monitoring capabilities.
+The AI Model Distillation for Financial Data developer example provides a comprehensive Helm chart for Kubernetes deployment, enabling scalable data processing workflows with integrated NeMo microservices, experiment tracking, and monitoring capabilities.
 
 ### What This Guide Covers
 
@@ -26,16 +26,16 @@ The AI Model Distillation for Financial Data developer exampleprovides a compreh
 | **Helm** | 3.8+ | Chart installation and management | Required |
 | **kubectl** | Latest | Cluster interaction and verification | Required |
 | **NGC API key** | Current | Access to NVIDIA container registry and models | Required |
-| **NVIDIA API key** | Current | Remote LLM judge access via NVIDIA API catalog | Required |
+| **NVIDIA API key** | Current | Remote NIM access and remote LLM judge access (only needed for tool-calling-judge evaluation, not classification) | Required |
 | **Hugging Face token** | Current | Model and dataset access | Required |
-| **LLM Judge API key** | Current | API key for remote LLM judge services | Optional |
+| **LLM Judge API key** | Current | API key for remote LLM judge services (only needed for tool-calling-judge evaluation, not classification) | Optional |
 | **EMB API Key** | Current | Model API key for remote embedding services | Optional |
 
 > **📖 For API key setup instructions:** See [Required API Keys and Access](03-configuration.md#required-api-keys-and-access)
 
 #### NVIDIA API Key Source
 
-To get your **NVIDIA API key**, visit [build.nvidia.com](https://build.nvidia.com) and generate an API key for accessing NVIDIA's API catalog and remote LLM services.
+To get your **NVIDIA API key**, visit [build.nvidia.com](https://build.nvidia.com) and generate an API key for accessing NVIDIA's API catalog and remote NIM services. Note: Remote LLM judge access is only needed if you're using tool-calling-judge evaluation (not for classification workloads, which is the default).
 
 ### Environment Verification
 
@@ -72,7 +72,9 @@ kubectl describe node $NODE | grep nvidia.com/gpu
 
 ## Configuration Overview
 
-The Data Flywheel Blueprint Helm chart uses a `values.yaml` file that defines all configuration options. This file must be updated with your specific settings before deployment:
+> **Note:** This is the financial services variant of the Data Flywheel Blueprint, configured for classification workloads with F1-score evaluation.
+
+The AI Model Distillation for Financial Data developer example Helm chart uses a `values.yaml` file that defines all configuration options. This file must be updated with your specific settings before deployment:
 
 - **Model Deployments**: All candidate models (NIMs) are deployed locally in your cluster for evaluation and customization
 - **LLM Judge**: Can be configured as either:
@@ -91,8 +93,8 @@ The Data Flywheel Blueprint Helm chart uses a `values.yaml` file that defines al
 
 ```bash
 # Clone the repository
-git clone https://github.com/NVIDIA-AI-Blueprints/data-flywheel.git
-cd data-flywheel
+git clone https://github.com/NVIDIA-AI-Blueprints/ai-model-distillation-for-financial-data.git
+cd ai-model-distillation-for-financial-data
 
 # Install Git LFS if not already installed
 git lfs install
@@ -123,6 +125,15 @@ cd nvidia-blueprint-data-flywheel
 
 > **Note**: Skip this step if you downloaded the chart from NGC registry, as all sub-charts are included.
 
+**Helm Chart Management:**
+
+The developer example uses repository-based Helm chart fetching for NeMo microservices. This approach automatically uses the latest available chart version from the NGC repository, ensuring you have the most up-to-date components. You can optionally specify a specific version if needed.
+
+**Key Features:**
+- **Automatic Latest Version**: By default, the system fetches the latest Helm chart version from the NGC repository
+- **Version Override**: You can specify a specific chart version using the `--helm-chart-version` flag (for example, in `scripts/deploy-nmp.sh`)
+- **Repository-Based**: Charts are fetched from `nemo-microservices/nemo-microservices-helm-chart` repository
+
 Add required Helm repositories:
 
 ```bash
@@ -143,6 +154,8 @@ cd deploy/helm/data-flywheel
 # Update chart dependencies
 helm dependency update
 ```
+
+> **Note:** The deployment script (`scripts/deploy-nmp.sh`) automatically handles Helm chart fetching using repository-based methods. For manual deployments, ensure you've added the NeMo microservices repository and updated the repository indexes before installing charts.
 
 Verify dependencies are downloaded:
 

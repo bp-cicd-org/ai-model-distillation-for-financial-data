@@ -5,7 +5,7 @@
 set -e
 
 # Configuration
-NAMESPACE="${NAMESPACE:-nv-nvidia-blueprint-data-flywheel}"
+NAMESPACE="${NAMESPACE:-nv-nvidia-blueprint-ai-model-distillation-financial-data}"
 MLFLOW_DEPLOYMENT="df-mlflow-deployment"
 
 echo "🔄 Clearing MLflow data in namespace: $NAMESPACE"

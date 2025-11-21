@@ -1,6 +1,6 @@
 # Task Orchestration and Workflow Management
 
-Learn how the developer example orchestrates complex workflows using Celery for task management, job lifecycle control, and resource cleanup.
+Learn how the AI Model Distillation for Financial Data developer example orchestrates complex workflows using Celery for task management, job lifecycle control, and resource cleanup for financial news classification workloads.
 
 ## Workflow Architecture
 
@@ -34,13 +34,15 @@ graph TD
 **Dependencies**: None (entry point)
 
 ```python
-# Example task invocation
+# Example task invocation for financial news classification workload
 run_nim_workflow_dag.delay(
-    workload_id="customer-service-v1",
+    workload_id="news_classifier",
     flywheel_run_id="507f1f77bcf86cd799439011",
-    client_id="production-app"
+    client_id="financial-news-dataset"
 )
 ```
+
+> **Note:** This example demonstrates a financial news classification workload. The `workload_id` identifies the classification task, and `client_id` identifies the dataset source containing financial news articles for classification.
 
 ### 2. **`create_datasets`**
 **Purpose**: Extracts data from Elasticsearch and creates training/evaluation datasets.
@@ -279,7 +281,7 @@ nvidia-smi
 curl "http://nemo.test/v1/models"
 
 # Check Kubernetes resources
-kubectl get pods -n dfwbp
+kubectl get pods -n dfwfd
 ```
 
 #### 3. **Evaluation Timeouts**

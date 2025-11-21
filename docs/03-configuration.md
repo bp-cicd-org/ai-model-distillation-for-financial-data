@@ -23,6 +23,7 @@ Learn how to configure the AI Model Distillation for Financial Data Developer Ex
   - [Model Integration](#model-integration)
     - [Supported Models](#supported-models)
   - [Evaluation Settings](#evaluation-settings)
+    - [Workload Type Configuration](#workload-type-configuration)
     - [Data Split Configuration](#data-split-configuration)
       - [Stratified Splitting Behavior](#stratified-splitting-behavior)
       - [Graceful Degradation](#graceful-degradation)
@@ -58,8 +59,8 @@ Learn how to configure the AI Model Distillation for Financial Data Developer Ex
 |-------------------------|---------|
 | **Minimum GPU** | 2× (NVIDIA A100/H100/H200/B200 GPUs) |
 | **Cluster** | Single-node NVIDIA GPU cluster on Linux with cluster-admin permissions |
-| **Disk Space** | At least 200 GB free |
-| **Software** | Python 3.12<br>Docker Engine<br>Docker Compose v2 |
+| **Disk Space** | At least 200 GB free (500 GB required for Minikube deployments) |
+| **Software** | Python 3.10+<br>Docker Engine<br>Docker Compose v2 |
 | **Services** | Elasticsearch 8.12.2<br>MongoDB 7.0<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing)<br>MLflow 2.22.0<br>Wandb 0.22.3 |
 | **Resource** | **Minimum Memory**: 1 GB (512 MB reserved for Elasticsearch)<br>**Storage**: Varies by log volume or model size<br>**Network**: Ports 8000 (API), 9200 (Elasticsearch), 27017 (MongoDB), 6379 (Redis) |
 | **Development** | Docker Compose for local development with hot reloading<br>Supports macOS (Darwin) and Linux<br>Optional: GPU support for model inference |
@@ -188,7 +189,7 @@ nmp_config:
   nemo_base_url: "http://nemo.test"
   nim_base_url: "http://nim.test"
   datastore_base_url: "http://data-store.test"
-  nmp_namespace: "dfwbp"
+  nmp_namespace: "dfwfd"  # Data Flywheel Financial Distillation
 ```
 
 | Option | Description | Default |
@@ -196,7 +197,7 @@ nmp_config:
 | `nemo_base_url` | Base URL for NeMo services | `http://nemo.test` |
 | `nim_base_url` | Base URL for NIM services | `http://nim.test` |
 | `datastore_base_url` | Base URL for datastore services | `http://data-store.test` |
-| `nmp_namespace` | Namespace for NMP resources | "dfwbp" |
+| `nmp_namespace` | Namespace for NMP resources | Config file default: "dfwfd" (Data Flywheel Financial Distillation). Code default: "dfwbp". **Note:** The config file value takes precedence over the code default when the configuration file is loaded. |
 
 ## Logging Configuration
 
@@ -227,7 +228,7 @@ The `mlflow_config` section controls MLflow integration for experiment tracking 
 mlflow_config:
   # enabled: automatically set based on COMPOSE_PROFILES environment variable
   tracking_uri: "http://0.0.0.0:5000"
-  experiment_name_prefix: "data-flywheel"
+  experiment_name_prefix: "findistil"
   artifact_location: "./mlruns"
 ```
 
@@ -235,7 +236,7 @@ mlflow_config:
 |--------|-------------|---------|-------|
 | `enabled` | Enable MLflow integration | Automatically set | Determined by checking if "mlflow" is in `COMPOSE_PROFILES` |
 | `tracking_uri` | MLflow tracking server URI | "http://0.0.0.0:5000" | URL of the MLflow tracking server |
-| `experiment_name_prefix` | Prefix for experiment names | "data-flywheel" | Used to organize experiments |
+| `experiment_name_prefix` | Prefix for experiment names | "findistil" | Used to organize experiments |
 | `artifact_location` | Location for MLflow artifacts | "./mlruns" | Directory for storing model artifacts |
 
 ### Enabling MLflow
@@ -309,6 +310,42 @@ Note: Not all models may be enabled by default in the configuration. Enable them
 
 ## Evaluation Settings
 
+> **Note**  
+> This financial services variant uses `workload_type: "classification"` in the configuration file (`config/config.yaml`), which overrides the code default of `"auto"`. This enables F1-score based evaluation for chat-completion workloads. Tool-calling workflows remain supported when configured. The config file value takes precedence over the code default when the configuration file is loaded.
+
+### Workload Type Configuration
+
+The `evaluation_config` section controls how workloads are evaluated:
+
+```yaml
+evaluation_config:
+  workload_type: "classification"  # Options: "auto", "classification", "tool_calling"
+  tool_eval_type: "tool-calling-metric"  # For tool_calling workloads only
+```
+
+**Workload Type Options:**
+
+- **`"classification"`** (default): Forces classification evaluation using F1-score. Use for text classification, sentiment analysis, or any categorical labeling task.
+- **`"tool_calling"`**: Forces tool-calling evaluation using function name accuracy and exact match metrics. Use for agent workflows with function calls.
+- **`"auto"`**: Automatically detects workload type by analyzing your data. The system checks for `tool_calls` in response messages:
+  - If `tool_calls` are present → treated as `tool_calling` workload
+  - If no `tool_calls` → treated as `classification` workload
+
+**Auto-Detection Behavior:**
+
+When `workload_type: "auto"` is set, the system:
+1. Scans response messages in your logged data for `tool_calls` fields
+2. If any record contains `tool_calls` → classifies as `tool_calling`
+3. If no `tool_calls` found → classifies as `classification`
+4. Uses appropriate evaluation metrics based on detected type
+
+**Recommendation:** Use explicit `"classification"` or `"tool_calling"` for predictable behavior. Use `"auto"` when you have mixed workloads or want the system to adapt automatically.
+
+**Tool Eval Type** (for `tool_calling` workloads only):
+
+- **`"tool-calling-metric"`** (default): Uses exact match metrics (function name accuracy, function name and arguments accuracy)
+- **`"tool-calling-judge"`**: Uses LLM-as-judge for correctness rating (requires `llm_judge_config` to be configured)
+
 The `data_split_config` section controls evaluation processes:
 
 ### Data Split Configuration
@@ -321,17 +358,20 @@ data_split_config:
   val_ratio: 0.1
   min_total_records: 50
   random_seed: null
-  limit: 10000
+  limit: null
   parse_function_arguments: true
 ```
 
+> **Note**  
+> For this financial services variant, the configuration file sets `eval_size: 100`, which differs from the code default of `20`. The config file value is used when the configuration file is loaded. If you omit `data_split_config` in API requests, the service uses values from `config/config.yaml` (including `eval_size: 100`). If you include `data_split_config` in API requests, any omitted fields use the API schema defaults (code defaults, such as `eval_size: 20`).
+
 | Option | Description | Default | Notes |
 |--------|-------------|---------|-------|
-| `eval_size` | Number of examples for evaluation | 100 | Minimum size of evaluation set (stratified across tool types) |
+| `eval_size` | Number of examples for evaluation | 100 (config file), 20 (code default) | Minimum size of evaluation set (stratified across tool types). Config file default is 100 for this financial services variant. |
 | `val_ratio` | Ratio of data used for validation | 0.1 | Must be ≥ 0 and < 1 (10% of remaining data after eval, stratified) |
 | `min_total_records` | Minimum required records | 50 | Total dataset size requirement |
 | `random_seed` | Seed for reproducible splits | null | Set for reproducible results |
-| `limit` | Limit for evaluator | 10000 | Set for evaluator config limit |
+| `limit` | Limit for evaluator | null | Use all available records when null |
 | `parse_function_arguments` | Parse function arguments to JSON | true | Data validation: converts string function arguments to JSON objects |
 
 #### Stratified Splitting Behavior
@@ -405,9 +445,9 @@ When all records use the same tool, stratification automatically falls back to r
 > - Adjust the validation ratio based on dataset size
 > - Set a specific random seed for reproducible results
 >
-> You can override just the parameters you want to change - any parameters not specified in the POST request will automatically use their default values shown in the table above. For instance, you could override just the `eval_size` while keeping the default values for all other parameters.
+> You can override just the parameters you want to change - any parameters not specified in the POST request will automatically use their default values from the API schema, while omitting the entire `data_split_config` in the request uses the values defined in `config/config.yaml`. For example, you could override just the `eval_size` while keeping other parameters from the YAML.
 >
-> See the [Run a Job section](02-quickstart.md#run-a-job) in the Quickstart Guide for a complete example.
+> See the [Job Operations section](02-quickstart.md#job-operations) in the Quickstart Guide for a complete example.
 
 ## Fine-tuning Options
 
@@ -417,13 +457,14 @@ The `training_config` and `lora_config` sections control model fine-tuning:
 training_config:
   training_type: "sft"
   finetuning_type: "lora"
-  epochs: 2
-  batch_size: 16
+  epochs: 1
+  batch_size: 64
   learning_rate: 0.0001
 
 lora_config:
-  adapter_dim: 32
+  adapter_dim: 16
   adapter_dropout: 0.1
+  sequence_packing_enabled: true
 ```
 
 ### Training Configuration
@@ -432,16 +473,17 @@ lora_config:
 |--------|-------------|---------|-------|
 | `training_type` | Type of training | "sft" | Supervised Fine-Tuning |
 | `finetuning_type` | Fine-tuning method | "lora" | Low-Rank Adaptation |
-| `epochs` | Training epochs | 2 | Full passes through data |
-| `batch_size` | Batch size | 16 | Samples per training step |
+| `epochs` | Training epochs | 1 | Full passes through data |
+| `batch_size` | Batch size | 64 | Samples per training step |
 | `learning_rate` | Learning rate | 0.0001 | Training step size |
 
 ### LoRA Configuration
 
 | Option | Description | Default | Notes |
 |--------|-------------|---------|-------|
-| `adapter_dim` | LoRA adapter dimension | 32 | Rank of adaptation |
+| `adapter_dim` | LoRA adapter dimension | 16 | Rank of adaptation |
 | `adapter_dropout` | Dropout rate | 0.1 | Regularization parameter |
+| `sequence_packing_enabled` | Enable sequence packing | true | Efficient training |
 
 ## Model Customization
 
@@ -521,14 +563,14 @@ Customization uses the global `training_config` and `lora_config` settings:
 training_config:
   training_type: "sft"        # Used by customization
   finetuning_type: "lora"     # Used by customization
-  epochs: 2                   # Used by customization
-  batch_size: 16              # Used by customization
+  epochs: 1                   # Used by customization
+  batch_size: 64              # Used by customization
   learning_rate: 0.0001       # Used by customization
 
 lora_config:
-  adapter_dim: 32             # Used by customization
-  adapter_alpha: 16           # Used by customization
+  adapter_dim: 16             # Used by customization
   adapter_dropout: 0.1        # Used by customization
+  sequence_packing_enabled: true  # Used by customization
 ```
 
 ### Example Configurations

@@ -17,9 +17,30 @@ Efficiently manage and maintain the developer example application using the foll
 
 Deployment script for NVIDIA NeMo microservices (NMP) setup. This is a comprehensive deployment script with specialized configuration for enterprise environments.
 
-- Contains advanced deployment logic and enterprise-specific configurations.
-- Requires specific NMP credentials and environment setup.
-- See internal deployment documentation for usage details.
+**Key Features:**
+
+- **Helm Chart Management**: Uses repository-based Helm chart fetching with automatic latest version detection. The script fetches the NeMo microservices Helm chart from the NGC repository (`nemo-microservices/nemo-microservices-helm-chart`) and uses the latest version by default. You can override the version using the `--helm-chart-version` flag.
+
+- **Minikube Configuration**: Automatically configures Minikube with 500 GB disk space to handle large container images. This prevents "no space left on device" errors during container image pulls. The disk size setting persists in the systemd service configuration for automatic application across restarts.
+
+- **Enterprise Configuration**: Contains advanced deployment logic and enterprise-specific configurations.
+
+- **Requirements**: Requires specific NMP credentials and environment setup (NGC_API_KEY, NVIDIA_API_KEY).
+
+**Usage:**
+
+```bash
+./scripts/deploy-nmp.sh [--helm-chart-version VERSION]
+```
+
+**Environment Variables:**
+
+- `NGC_API_KEY`: Required for NGC login and container downloads
+- `NVIDIA_API_KEY`: Required for remote NIM access
+- `HELM_CHART_REPO`: Helm chart repository (default: `nemo-microservices/nemo-microservices-helm-chart`)
+- `HELM_CHART_VERSION`: Helm chart version (default: latest, empty string)
+
+> **Note:** This script is designed for Minikube-based deployments. For production Kubernetes deployments, refer to the [Helm Installation Guide](11-helm-installation.md).
 
 ### `generate_openapi.py`
 
@@ -66,7 +87,7 @@ A script to ensure your `requirements.txt` is in sync with your `pyproject.toml`
 
 ### `quick-test.sh`
 
-A minimal script to quickly verify that the API is running and responsive:
+A minimal script to verify that the API is running and responsive:
 
 - Sends a POST request to `http://localhost:8001/jobs` with a test payload.
 - Useful for smoke-testing the local API after startup.

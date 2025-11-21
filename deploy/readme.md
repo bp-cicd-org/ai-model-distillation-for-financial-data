@@ -1,10 +1,10 @@
 # Overview
 
-This container provides the main API and orchestration service for the NVIDIA Data Flywheel Foundational Blueprint. It acts as the control plane, coordinating the end-to-end flywheel workflow for continuous improvement of fine-tuned AI models.
+This container provides the main API and orchestration service for the [NVIDIA Data Flywheel Foundational Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel). It acts as the control plane, coordinating the end-to-end flywheel workflow for continuous improvement of fine-tuned AI models.
 
 ## About the Data Flywheel Foundational Blueprint
 
-The Data Flywheel Foundational Blueprint provides a complete reference implementation for a flywheel service that continuously improves fine-tuned AI models by identifying and promoting more efficient candidates.
+The [Data Flywheel Foundational Blueprint](https://github.com/NVIDIA-AI-Blueprints/data-flywheel) provides a complete reference implementation for a flywheel service that continuously improves fine-tuned AI models by identifying and promoting more efficient candidates.
 
 Leveraging the [NVIDIA NeMo Microservices](https://docs.nvidia.com/nemo/microservices/latest/index.html) platform, this blueprint enables developers to quickly bootstrap a control-plane service and automate end-to-end workflows—utilizing components such as NeMo Customizer and NeMo Evaluator—to discover and promote efficient model variants using real logging and tool-calling data.
 

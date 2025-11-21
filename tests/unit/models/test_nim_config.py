@@ -100,7 +100,7 @@ def test_nim_config_to_dms_config():
 
     # Verify the configuration
     assert dms_config["name"] == "test-model"  # Slash replaced with dash
-    assert dms_config["namespace"] == "dfwbp"
+    assert dms_config["namespace"] == "dfwfd"
     assert dms_config["config"]["model"] == "test/model"
     assert dms_config["config"]["nim_deployment"]["image_name"] == "nvcr.io/nim/test/model"
     assert dms_config["config"]["nim_deployment"]["image_tag"] == "latest"
@@ -120,7 +120,7 @@ def test_nim_config_to_dms_config():
 
     # Verify the configuration
     assert dms_config["name"] == "test-model"  # Slash replaced with dash
-    assert dms_config["namespace"] == "dfwbp"
+    assert dms_config["namespace"] == "dfwfd"
     assert dms_config["config"]["model"] == "test/model"
     assert (
         dms_config["config"]["nim_deployment"]["image_name"] == "custom.registry.io/nim/test/model"

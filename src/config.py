@@ -27,7 +27,7 @@ class NMPConfig(BaseModel):
     datastore_base_url: str = Field(..., frozen=True)
     nemo_base_url: str = Field(..., frozen=True)
     nim_base_url: str = Field(..., frozen=True)
-    nmp_namespace: str = Field("dwfbp", frozen=True)
+    nmp_namespace: str = Field("dfwfd", frozen=True)  # Data Flywheel Financial Distillation
 
 
 class DataSplitConfig(BaseModel):
@@ -153,7 +153,7 @@ class MLflowConfig(BaseModel):
     )
     tracking_uri: str = Field(default="http://0.0.0.0:5000", description="MLflow tracking URI")
     experiment_name_prefix: str = Field(
-        default="data-flywheel", description="Prefix for experiment names"
+        default="findistil", description="Prefix for experiment names"
     )
     artifact_location: str = Field(default="./mlruns", description="Location for MLflow artifacts")
 
