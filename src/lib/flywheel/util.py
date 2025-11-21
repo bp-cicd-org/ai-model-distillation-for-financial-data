@@ -132,26 +132,45 @@ def identify_workload_type(
     
     Returns:
         WorkloadClassification enum
+    
+    Raises:
+        ValueError: If config_override is "tool_calling" but data doesn't contain tool calls
     """
     from src.api.models import WorkloadClassification
 
-    # If config explicitly sets the workload type (not "auto"), use it
-    if config_override and config_override != "auto":
-        if config_override in ("generic", "classification"):
-            return WorkloadClassification.CLASSIFICATION
-        elif config_override == "tool_calling":
-            return WorkloadClassification.TOOL_CALLING
-
-    # Otherwise, auto-detect from the data
-    # Check for tool calls in response messages
+    # First, check what the data actually contains
+    has_tool_calls = False
     for record in records:
         try:
             tool_calls = record["response"]["choices"][0]["message"].get("tool_calls")
             if tool_calls and len(tool_calls) > 0:
-                return WorkloadClassification.TOOL_CALLING
+                has_tool_calls = True
+                break
         except (KeyError, IndexError):
             continue
 
+    # If config explicitly sets the workload type (not "auto"), validate it
+    if config_override and config_override != "auto":
+        if config_override in ("generic", "classification"):
+            return WorkloadClassification.CLASSIFICATION
+        elif config_override == "tool_calling":
+            # Validate that data actually supports tool calling
+            if not has_tool_calls:
+                raise ValueError(
+                    "Configuration error: workload_type is set to 'tool_calling' in config.yaml, "
+                    "but the provided data does not contain any tool calls. "
+                    "This dataset appears to be for classification tasks. "
+                    "Please either:\n"
+                    "  1. Set workload_type to 'classification' in config/config.yaml, or\n"
+                    "  2. Set workload_type to 'auto' to auto-detect the workload type, or\n"
+                    "  3. Provide data with tool_calls in the response messages"
+                )
+            return WorkloadClassification.TOOL_CALLING
+
+    # Auto-detect from the data
+    if has_tool_calls:
+        return WorkloadClassification.TOOL_CALLING
+    
     return WorkloadClassification.CLASSIFICATION
 
 

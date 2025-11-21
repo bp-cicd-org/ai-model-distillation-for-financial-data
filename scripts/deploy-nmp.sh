@@ -15,8 +15,9 @@ NAMESPACE="default"
 REQUIRED_DISK_GB=200
 REQUIRED_GPUS=2
 NGC_API_KEY="${NGC_API_KEY:-}"
+WANDB_API_KEY="${WANDB_API_KEY:-}"
 HELM_CHART_REPO="nemo-microservices/nemo-microservices-helm-chart"
-HELM_CHART_VERSION=""  # Empty string means use latest version
+HELM_CHART_VERSION="25.10.0"  # Empty string means use latest version
 ADDITIONAL_VALUES_FILES=(demo-values.yaml)
 
 # === Progress Bar Config ===
@@ -98,7 +99,13 @@ show_progress() {
 update_progress() {
   if [[ "$SHOW_PROGRESS_BAR" == "true" ]]; then
     CURRENT_STEP=$((CURRENT_STEP + 1))
-    show_progress "$CURRENT_STEP" "${STEP_DESCRIPTIONS[$((CURRENT_STEP - 1))]}"
+    # Ensure we have a valid index (CURRENT_STEP is now 1-based, array is 0-based)
+    local desc_index=$((CURRENT_STEP - 1))
+    if [[ $desc_index -ge 0 && $desc_index -lt ${#STEP_DESCRIPTIONS[@]} ]]; then
+      show_progress "$CURRENT_STEP" "${STEP_DESCRIPTIONS[$desc_index]}"
+    else
+      show_progress "$CURRENT_STEP" "Unknown step"
+    fi
   fi
 }
 
@@ -616,19 +623,19 @@ setup_ngc_and_helm() {
   kubectl create secret generic ngc-api \
     --from-literal=NGC_API_KEY="$NGC_API_KEY"
 
-  # Setup W&B if API key is present
+  # Setup W&B secret (always create it, even if empty)
   if [[ -n "$WANDB_API_KEY" ]]; then
     log "WANDB_API_KEY detected - configuring Weights & Biases..."
-    kubectl create secret generic wandb-api-key \
-      --from-literal=api-key="$WANDB_API_KEY" \
-      -n "$NAMESPACE" \
-      --dry-run=client -o yaml | kubectl apply -f -
     log "W&B secret created. Training metrics will be logged to https://wandb.ai"
-    log "Note: wandb-secret will be finalized after Helm install completes"
   else
     log "WANDB_API_KEY not set - W&B logging disabled"
     log "To enable W&B: add WANDB_API_KEY to ~/.env"
   fi
+  
+  kubectl create secret generic wandb-api-key \
+    --from-literal=api-key="$WANDB_API_KEY" \
+    -n "$NAMESPACE" \
+    --dry-run=client -o yaml | kubectl apply -f -
 }
 
 # === Phase 3: Deploy Helm Chart ===
@@ -715,16 +722,16 @@ EOF
   fi
 
   # Build version argument if specified
-  local version_arg=""
+  local version_args=()
   if [[ -n "$HELM_CHART_VERSION" ]]; then
-    version_arg="--version $HELM_CHART_VERSION"
+    version_args=("--version" "$HELM_CHART_VERSION")
     log "Using Helm chart version: $HELM_CHART_VERSION"
   else
     log "Using latest Helm chart version"
   fi
 
   # Need to fetch and untar for the volcano installation
-  helm pull --untar "$HELM_CHART_REPO" $version_arg \
+  helm pull --untar "$HELM_CHART_REPO" "${version_args[@]}" \
       --username='$oauthtoken' \
       --password=$NGC_API_KEY
 }
@@ -747,12 +754,12 @@ install_nemo_microservices () {
   fi
 
   # Build version argument if specified
-  local version_arg=""
+  local version_args=()
   if [[ -n "$HELM_CHART_VERSION" ]]; then
-    version_arg="--version $HELM_CHART_VERSION"
+    version_args=("--version" "$HELM_CHART_VERSION")
   fi
 
-  helm install nemo "$HELM_CHART_REPO" $version_arg -f demo-values.yaml --namespace "$NAMESPACE" \
+  helm install nemo "$HELM_CHART_REPO" "${version_args[@]}" -f demo-values.yaml --namespace "$NAMESPACE" \
     --username='$oauthtoken' \
     --password=$NGC_API_KEY
 
@@ -1050,9 +1057,8 @@ main() {
   install_nemo_microservices
   restore_output
 
-  # Step 6: Install Kyverno for WandB injection (only if WANDB_API_KEY is set)
+  # Install Kyverno for WandB injection (optional, no progress update)
   if [[ -n "$WANDB_API_KEY" ]]; then
-    update_progress
     redirect_output
     install_kyverno
     restore_output
@@ -1060,7 +1066,7 @@ main() {
     log "WANDB_API_KEY not set - skipping Kyverno installation"
   fi
 
-  # Step 7: Wait for pods
+  # Step 6: Wait for pods
   update_progress
   redirect_output
   wait_for_pods

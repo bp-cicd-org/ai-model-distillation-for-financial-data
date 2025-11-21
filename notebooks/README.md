@@ -1,4 +1,4 @@
-# NVIDIA AI Model Distillation for Financial Data
+# AI Model Distillation for Financial Data
 
 ## Introduction
 
@@ -6,7 +6,7 @@ The AI Model Distillation for Financial Data developer example provides a workfl
 
 ![The AI Model Distillation for Financial Data ](./img/findistil_diagram.png)
 
-With a self-reinforcing data flywheel, these models are iteratively distilled and domain-adapted on production datasets, enabling rapid backtesting, strategy evaluation, and accelerated experimentation.
+This notebook demonstrates how to use a data flywheel to distill knowledge from a large teacher model into smaller, more efficient student models for financial news classification. Key steps include generating high-quality labels using a teacher model, processing the data, fine-tuning smaller candidate models, and evaluating their performance to match teacher-level accuracy.
 
 ## How it Works
 
@@ -20,11 +20,9 @@ Each microservice is packaged as a Docker container for consistent deployment ac
 
 All direct communication with the NeMo Microservices platform (model deployment, evaluation, customization, etc.) is handled by the orchestrator's backend services. This means you do not need to interact with NeMo APIs or infrastructure directly—the orchestrator manages the full workflow for you.
 
-## Notebooks
+## Notebook
 
-Check out the following example notebooks to learn how to distill LLMs using a data flywheel for domain-specific applications.
-
-- [AI Model Distillation for Financial Data developer example](./ai-model-distillation-financial-data.ipynb): Distil, evaluate and deploy a domain-spcific, cost efficient model.
+- [AI Model Distillation for Financial Data](./ai-model-distillation-financial-data.ipynb): Use a teacher model to label financial news headlines and fine-tune smaller models to achieve comparable accuracy for event classification.
 
 ## Prerequisites
 
@@ -32,7 +30,7 @@ Check out the following example notebooks to learn how to distill LLMs using a d
 
 To complete this tutorial, you'll need a system with at least two A100/H100/H200/B200 (80GB) NVIDIA GPUs, which will be used as follows:
 
-- **Fine-tuning:** At least one GPU is required for fine-tuning a model (e.g.`meta/llama-3.2-1B-instruct`, `meta/llama-3.2-3B-instruct` or `meta/llama-3.1-8B-instruct`).
+- **Fine-tuning:** At least one GPU is required for fine-tuning a model (e.g. `meta/llama-3.2-1b-instruct`, `meta/llama-3.2-3b-instruct` or `meta/llama-3.1-8b-instruct`).
 - **Inference:** At least one GPU is required for deploying the corresponding NIM for evaluation.
 
 ### Software Requirement
@@ -49,7 +47,7 @@ First, please ensure your platform meets the [Requirements](https://docs.nvidia.
    ```sh
    git clone git@github.com:NVIDIA-AI-Blueprints/ai-model-distillation-for-financial-data.git
 
-   cd ai-model-distillation-financial-data
+   cd ai-model-distillation-for-financial-data
    ```
 
 2. Install dependencies using [uv](https://docs.astral.sh/uv/getting-started/installation/):

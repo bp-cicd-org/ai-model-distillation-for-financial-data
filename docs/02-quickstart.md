@@ -212,19 +212,14 @@ You have several options to start the services:
    NVIDIA_API_KEY=nvapi-your-nvidia-api-key-here
    NGC_API_KEY=nvapi-your-ngc-api-key-here
    
-   # Hugging Face token for data uploading
-   HF_TOKEN=hf_your-huggingface-token-here
-   
-   # Docker Compose profiles (enable MLflow)
-   COMPOSE_PROFILES=mlflow
-   
-   # Optional: Database connection overrides
-   MONGODB_URL=mongodb://localhost:27017
-   REDIS_URL=redis://localhost:6379/0
-   ELASTICSEARCH_URL=http://localhost:9200
+   # Database credentials (REQUIRED)
    MONGO_USERNAME=admin
-   MONGO_PASSWORD=changeme123
-   REDIS_PASSWORD=changeme123
+   MONGO_PASSWORD=your_secure_password
+   REDIS_PASSWORD=your_secure_password
+   
+   # Optional
+   HF_TOKEN=hf_your-huggingface-token-here
+   COMPOSE_PROFILES=mlflow
    ```
 
    > **Note:** The `--env-file` argument allows you to specify any `.env` file location in your repository.
