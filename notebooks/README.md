@@ -1,4 +1,4 @@
-# NVIDIA Data Flywheel Foundational Blueprint Notebooks
+# AI Model Distillation for Financial Data
 
 ## Introduction
 
@@ -6,7 +6,7 @@ A data flywheel creates a self-reinforcing loop where user interactions continuo
 
 ![Data Flywheel](./img/dfw-diagram.png)
 
-Key steps in a data flywheel include logging user interactions, processing the data, customizing and evaluating candidate models, adding guardrails, and integrating them with external knowledge bases for question answering.
+This notebook demonstrates how to use a data flywheel to distill knowledge from a large teacher model into smaller, more efficient student models for financial news classification. Key steps include generating high-quality labels using a teacher model, processing the data, fine-tuning smaller candidate models, and evaluating their performance to match teacher-level accuracy.
 
 ## How it Works
 
@@ -28,11 +28,9 @@ When you submit a job via the Orchestrator API, the system:
 
 All direct communication with the NeMo Microservices platform (model deployment, evaluation, customization, etc.) is handled by the orchestrator's backend services. This means you do not need to interact with NeMo APIs or infrastructure directly—the orchestrator manages the full workflow for you.
 
-## Notebooks
+## Notebook
 
-Check out the following example notebooks to learn how to optimize LLMs using a data flywheel.
-
-- [Discover More Cost-Efficient AI Customer Service Agents](./data-flywheel-bp-tutorial.ipynb): Use logs and tool-calling data to fine-tune and evaluate a more cost efficient model.
+- [AI Model Distillation for Financial Data](./ai-model-distillation-financial-data.ipynb): Use a teacher model to label financial news headlines and fine-tune smaller models to achieve comparable accuracy for event classification.
 
 ## Prerequisites
 
@@ -40,7 +38,7 @@ Check out the following example notebooks to learn how to optimize LLMs using a 
 
 To complete this tutorial, you'll need a system with at least two A100 or H100 (80GB) NVIDIA GPUs, which will be used as follows:
 
-- **Fine-tuning:** At least one GPU is required for fine-tuning a model (e.g.`meta/llama-3.2-1B-instruct`, `meta/llama-3.2-3B-instruct` or `meta/llama-3.1-8B-instruct`).
+- **Fine-tuning:** At least one GPU is required for fine-tuning a model (e.g. `meta/llama-3.2-1b-instruct`, `meta/llama-3.2-3b-instruct` or `meta/llama-3.1-8b-instruct`).
 - **Inference:** At least one GPU is required for deploying the corresponding NIM for evaluation.
 
 ### Software Requirement
@@ -55,9 +53,9 @@ First, please ensure your platform meets the [Requirements](https://docs.nvidia.
 1. Clone the blueprint repository:
 
    ```sh
-   git clone git@github.com:NVIDIA-AI-Blueprints/data-flywheel.git
+   git clone git@github.com:NVIDIA-AI-Blueprints/ai-model-distillation-for-financial-data.git
 
-   cd data-flywheel
+   cd ai-model-distillation-for-financial-data
    ```
 
 2. Install dependencies using [uv](https://docs.astral.sh/uv/getting-started/installation/):
