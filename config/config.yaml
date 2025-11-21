@@ -5,7 +5,7 @@ nmp_config:
 
 
   # All resources created in NeMo Microservices Platform (NMP) will be namespaced to this value
-  nmp_namespace: "dfwfd"
+  nmp_namespace: "mdfd"
 
 # Logging configuration
 logging_config:

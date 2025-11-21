@@ -335,7 +335,7 @@ foundationalFlywheelServer:
       datastore_base_url: "http://data-store.test"
 
       # All resources created in NeMo Microservices Platform (NMP) will be namespaced to this value
-      nmp_namespace: "dfwbp"
+      nmp_namespace: "mdfd"
 
     # Logging configuration
     logging_config:
