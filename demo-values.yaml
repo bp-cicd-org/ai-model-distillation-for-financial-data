@@ -41,16 +41,7 @@ customizer:
         env:
           - name: WANDB_BASE_URL
             value: "https://api.wandb.ai"
-          - name: WANDB_API_KEY
-            value: e0dae5c27937567b0d7c792082d063b2d7f7eed6
-          - name: WANDB_API_KEY
-            value: e0dae5c27937567b0d7c792082d063b2d7f7eed6
-          - name: WANDB_API_KEY
-            value: e0dae5c27937567b0d7c792082d063b2d7f7eed6
-          - name: WANDB_API_KEY
-            value: e0dae5c27937567b0d7c792082d063b2d7f7eed6
-          - name: WANDB_API_KEY
-            value: e0dae5c27937567b0d7c792082d063b2d7f7eed6
+
     # Weights & Biases configuration
     # If wandb-api-key secret exists, training metrics will be logged to W&B
     wandb:
