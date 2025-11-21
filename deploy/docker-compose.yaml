@@ -8,6 +8,8 @@ services:
       target: dev
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - ELASTICSEARCH_URL=http://localhost:9200
       - ES_COLLECTION_NAME=${ES_COLLECTION_NAME:-flywheel}
@@ -37,6 +39,8 @@ services:
       context: ..
       dockerfile: ./deploy/Dockerfile
       target: dev
+    env_file:
+      - .env
     environment:
       - ELASTICSEARCH_URL=http://localhost:9200
       - ES_COLLECTION_NAME=${ES_COLLECTION_NAME:-flywheel}
@@ -68,6 +72,8 @@ services:
       context: ..
       dockerfile: ./deploy/Dockerfile
       target: dev
+    env_file:
+      - .env
     environment:
       - ELASTICSEARCH_URL=http://localhost:9200
       - ES_COLLECTION_NAME=${ES_COLLECTION_NAME:-flywheel}
@@ -103,6 +109,8 @@ services:
       - "6379:6379"  # Bind to localhost only
     volumes:
       - redis-data:/data
+    env_file:
+      - .env
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-changeme123}
     restart: always
 
@@ -112,6 +120,8 @@ services:
       - "27017:27017"  # Bind to localhost only
     volumes:
       - mongodb-data:/data/db
+    env_file:
+      - .env
     environment:
       - MONGO_LOG_LEVEL=error
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME:-admin}
