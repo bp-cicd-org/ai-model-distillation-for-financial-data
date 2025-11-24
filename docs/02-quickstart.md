@@ -2,7 +2,7 @@
 
 Learn how to set up and deploy the AI Model Distillation for Financial Data developer example using the steps in this guide.
 
-This quickstart points users to a public financial news headlines dataset to help get started working with the services.
+This quickstart points users to a public financial news headlines dataset on Huggingface, which can be used to get started working with the services.
 
 ## Prerequisites
 
