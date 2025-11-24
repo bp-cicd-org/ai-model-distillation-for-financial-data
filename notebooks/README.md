@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The AI Model Distillation for Financial Data developer example provides a workflow for creating, evaluating, and deploying high-performance, domain-specific models in financial services. Built with NVIDIA NeMo and NIM, it enables continuous distillation, fine-tuning, and evaluation on real financial data, maintaining accuracy while reducing compute costs.
+The AI Model Distillation for Financial Data developer example provides a workflow for creating, evaluating, and deploying high-performance, domain-specific models in financial services. Built with NVIDIA Nemotron, NVIDIA NeMo, and NVIDIA NIM, it enables continuous distillation, fine-tuning, and evaluation on real financial data, maintaining accuracy while reducing compute costs.
 
 ![The AI Model Distillation for Financial Data ](./img/findistil_diagram.png)
 
