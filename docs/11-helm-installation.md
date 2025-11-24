@@ -4,7 +4,7 @@ Learn how to deploy the AI Model Distillation for Financial Data developer examp
 
 ## Overview
 
-The AI Model Distillation for Financial Data developer exampleprovides a comprehensive Helm chart for Kubernetes deployment, enabling scalable data processing workflows with integrated NeMo microservices, experiment tracking, and monitoring capabilities.
+The AI Model Distillation for Financial Data developer example provides a comprehensive Helm chart for Kubernetes deployment, enabling scalable data processing workflows with integrated NeMo microservices, experiment tracking, and monitoring capabilities.
 
 ### What This Guide Covers
 
