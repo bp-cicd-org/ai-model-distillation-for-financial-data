@@ -4,11 +4,12 @@ Learn how to leverage advanced NeMo Microservices Platform capabilities for mode
 
 ## NeMo Services Integration Overview
 
-The developer example integrates with five core NeMo services:
+The developer example integrates with the following core NeMo services:
 
 - **NeMo Customizer**: Fine-tuning and model adaptation
 - **NeMo Evaluator**: Comprehensive model evaluation  
 - **NeMo Deployment Manager (DMS)**: Model deployment and serving
+- **NeMo Datastore**: Manage structured datasets and artifacts
 
 ### Service Configuration
 
