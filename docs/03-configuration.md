@@ -1,6 +1,6 @@
 # Configuration Guide
 
-Learn how to configure the AI Model Distillation for Financial Data Developer Example using this guide. It covers all available configuration options, their impacts, and recommended settings.
+Learn how to configure the AI Model Distillation for Financial Data developer example using this guide. It covers all available configuration options, their impacts, and recommended settings.
 
 - [Configuration Guide](#configuration-guide)
   - [Prerequisites](#prerequisites)
@@ -104,7 +104,7 @@ You must have Git Large File Storage (LFS) installed and configured to download 
 
 > **Important**
 >
-> Advanced configuration such as Large-scale hyper-parameter sweeps, architecture search, or custom evaluation metrics must run directly in **NeMo microservices**. The configurations in this guide are only for the developer example itself.
+> Advanced configuration such as large-scale hyper-parameter sweeps, architecture search, or custom evaluation metrics must run directly in **NeMo microservices**. The configurations in this guide are only for the developer example itself.
 
 > **Note**
 > 
@@ -299,9 +299,15 @@ nims:
 ### Supported Models
 
 Currently supported models include:
-- Meta Llama 3.1 8B Instruct
-- Meta Llama 3.2 1B Instruct
+
+Student models:
+
+- Meta Llama 3.1 1B Instruct
 - Meta Llama 3.2 3B Instruct
+- Meta Llama 3.2 8B Instruct
+
+Teacher models:
+
 - Meta Llama 3.3 Nemotron Super 49b v1
 - Meta Llama 3.3 70B Instruct
 
