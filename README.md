@@ -36,7 +36,7 @@ You can get started quickly and achieve similar results using your own infrastru
   - [Available Customizations](#available-customizations)
   - [Contributing](#contributing)
   - [License](#license)
-  - [Disclaimer:](#disclaimer)
+  - [Disclaimer](#disclaimer)
 
 ## Financial Use Case: News Event Classification
 
