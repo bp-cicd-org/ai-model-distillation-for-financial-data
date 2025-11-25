@@ -43,14 +43,15 @@ You can get started quickly and achieve similar results using your own infrastru
 Demonstrates model distillation on financial news headlines classification (13 event categories: market movements, earnings, regulatory changes, etc.).
 
 **What you'll learn:**
-- Generate labeled data using teacher model (Llama 3.3 70B)
+- Generate labeled data using the Llama 3.3 Nemotron 49B teacher model (or Llama 3.3 70B)
 - Distill to smaller models (Llama 3.2 1B/3B, Llama 3.1 8B)
 - Evaluate using F1-score metrics for classification accuracy
 - Deploy cost-efficient models matching teacher performance
 
 **Results:**
-- 95%+ F1-score with fine-tuned 1B models
-- 98% inference cost reduction vs. 70B models
+- 95% F1-score with fine-tuned 3B and 8B models (matching Nemotron 49B performance)
+- 90% F1-score with fine-tuned 1B model (at 25k examples)
+- Significant inference cost reduction vs. 49B/70B models
 - Automated improvement through production data
 
 ## What is a Data Flywheel?
@@ -96,12 +97,15 @@ evaluator --> results["Flywheel Results"]
 
 Automated process using NeMo microservices:
 
-1. Pull data from log store
-2. Group by task and de-duplicate
-3. Create eval/fine-tuning datasets using stratified splitting for balanced representation
-4. Store datasets in NeMo Datastore
-5. Launch fine-tuning jobs (NeMo Customizer)
-6. Run F1-score evaluations (NeMo Evaluator)
+1. Ingest: Pull data from log store and de-duplicate by task.
+
+2. Curate: Create eval/fine-tuning datasets using stratified splitting for balanced representation.
+
+3. Store: Manage datasets in NeMo Datastore.
+
+4. Train: Launch fine-tuning jobs (NeMo Customizer using LoRA).
+
+5. Score: Run F1-score evaluations (NeMo Evaluator).
 
 System narrows vast options to manageable promising candidates. Scale across multiple NIMs using NeMo Deployment Manager for dynamic resource allocation.
 
@@ -114,12 +118,11 @@ This implementation uses unconventional but effective techniques:
 
 **This approach works well for:**
 - Classification tasks (sentiment, category, routing)
-- Structured outputs (tool calling, entity extraction)  
+- Structured outputs 
 - Domain-specific workflows with consistent patterns
 
 **This approach may not work for:**
 - Open-ended creative generation
-- Tasks requiring nuanced human judgment
 - Highly regulated outputs requiring human review
 
 **To use this developer example:**
@@ -142,7 +145,7 @@ This implementation uses unconventional but effective techniques:
 
 5. **Interpret results**
    - Review F1-scores by student model
-   - **base** = zero-shot performance
+   - **base** = zero-shot performance of student model
    - **customized** = post-LoRA fine-tuning performance
    - F1-score ranges:
      - 0.95+ = Production-ready
@@ -160,7 +163,8 @@ This implementation uses unconventional but effective techniques:
 
 **For this Financial Example:**
 - Dataset: Financial news headlines with 13 event categories
-- Teacher Model: Llama 3.3 70B Instruct (generates labels)
+- Teacher Model: Llama 3.3 Nemotron 49B or Llama 3.3 70B Instruct (generates labels)
+- Student Models: Llama 3.2 1B/3B, Llama 3.1 8B
 - Ground Truth: Teacher responses in Elasticsearch
 - Evaluation: F1-score comparing student vs. teacher
 - Workflow: Base eval → LoRA fine-tuning → Customized eval (parallel per NIM)
