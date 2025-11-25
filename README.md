@@ -166,7 +166,7 @@ This ensures that only **one** Flywheel experiment can allocate GPUs at any give
 - **Troubleshooting**: [FAQ & Troubleshooting](./docs/faq-troubleshooting.md) for common issues and solutions
 
 ### External Resources
-- [Build Efficient Financial Data Workflows with AI Model Distillation](final url)
+- [Build Efficient Financial Data Workflows with AI Model Distillation](https://developer.nvidia.com/blog/build-efficient-financial-data-workflows-with-ai-model-distillation)
 - [Enhance Your AI Agent with Data Flywheels Using NVIDIA NeMo Microservices](https://developer.nvidia.com/blog/enhance-your-ai-agent-with-data-flywheels-using-nvidia-nemo-microservices/)
 - [Nvidia Releases NeMo Microservices To Streamline AI Agent Development](https://www.forbes.com/sites/janakirammsv/2025/04/25/nvidia-releases-nemo-microservices-to-streamline-ai-agent-development/)
 - [Overview of NeMo Microservices](https://docs.nvidia.com/nemo/microservices/latest/about/index.html)
