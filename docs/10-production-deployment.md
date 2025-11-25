@@ -2,8 +2,9 @@
 
 Learn how to deploy and operate the developer example in production environments using Kubernetes, with comprehensive monitoring, scaling, and disaster recovery strategies.
 
-> **📖 For prerequisites and system requirements:** Refer to [System Requirements](03-configuration.md#system-requirements)
-> **📖 For environment setup:** Refer to [Environment Variables](03-configuration.md#environment-variables)
+> **📖 For prerequisites and system requirements:** Refer to [System Requirements](03-configuration.md#system-requirements)  
+> **📖 For environment setup:** Refer to [Environment Variables](03-configuration.md#environment-variables)  
+> **🔧 Troubleshooting:** See [FAQ & Troubleshooting](faq-troubleshooting.md) for common issues and solutions
 
 ## Production Architecture Overview
 
