@@ -1,6 +1,6 @@
 # API Reference and Integration Guide
 
-Learn how to integrate with the Data Flywheel Blueprint REST API to programmatically manage flywheel jobs, monitor progress, and retrieve results.
+Learn how to integrate with the developer example REST API to programmatically manage flywheel jobs, monitor progress, and retrieve results.
 
 ## Base URL and Authentication
 
@@ -121,12 +121,6 @@ Retrieves detailed information about a specific job, including all workflow stag
   "started_at": "2024-01-15T10:30:00Z",
   "finished_at": "2024-01-15T12:45:00Z",
   "num_records": 1000,
-  "llm_judge": {
-    "model_name": "gpt-4",
-    "type": "remote",
-    "deployment_status": "ready",
-    "error": null
-  },
   "datasets": [
     {
       "name": "base-eval-dataset",
@@ -435,4 +429,4 @@ def manage_multiple_jobs(client, job_configs):
     return completed
 ```
 
-This API reference provides the foundation for integrating any application with the Data Flywheel Blueprint. For advanced workflow configuration, see the [Configuration Guide](./03-configuration.md). 
+This API reference provides the foundation for integrating any application with the developer example. For advanced workflow configuration, see the [Configuration Guide](./03-configuration.md). 

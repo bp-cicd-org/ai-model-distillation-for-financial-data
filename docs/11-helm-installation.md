@@ -1,10 +1,10 @@
 # Helm Installation Guide
 
-Learn how to deploy the Data Flywheel Blueprint on Kubernetes using Helm charts for scalable, production-ready environments.
+Learn how to deploy the AI Model Distillation for Financial Data developer example on Kubernetes using Helm charts for scalable, production-ready environments.
 
 ## Overview
 
-The Data Flywheel Blueprint provides a comprehensive Helm chart for Kubernetes deployment, enabling scalable data processing workflows with integrated NeMo microservices, experiment tracking, and monitoring capabilities.
+The AI Model Distillation for Financial Data developer example provides a comprehensive Helm chart for Kubernetes deployment, enabling scalable data processing workflows with integrated NeMo microservices, experiment tracking, and monitoring capabilities.
 
 ### What This Guide Covers
 
@@ -599,11 +599,8 @@ echo "API Pod: $POD_NAME"
 # Set path to your JSONL dataset
 export LOCAL_DATA_PATH="/path/to/your/dataset.jsonl"
 
-# For example, using provided AIVA dataset:
-export LOCAL_DATA_PATH="$(pwd)/../../../data/aiva_primary_assistant_dataset.jsonl"
-
-# If you cloned from GitHub, the path would be:
-# export LOCAL_DATA_PATH="$(pwd)/../../../data/aiva_primary_assistant_dataset.jsonl"
+# For example, using a provided dataset:
+export LOCAL_DATA_PATH="$(pwd)/../../../data/your_dataset.jsonl"
 
 # Copy dataset to the pod
 kubectl cp $LOCAL_DATA_PATH $POD_NAME:/legal/source/data/datasets.jsonl

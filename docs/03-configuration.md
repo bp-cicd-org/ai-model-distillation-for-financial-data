@@ -1,6 +1,6 @@
 # Configuration Guide
 
-Learn how to configure the Data Flywheel Foundational Blueprint using this guide. It covers all available configuration options, their impacts, and recommended settings.
+Learn how to configure the AI Model Distillation for Financial Data developer example using this guide. It covers all available configuration options, their impacts, and recommended settings.
 
 - [Configuration Guide](#configuration-guide)
   - [Prerequisites](#prerequisites)
@@ -23,17 +23,12 @@ Learn how to configure the Data Flywheel Foundational Blueprint using this guide
   - [Model Integration](#model-integration)
     - [Supported Models](#supported-models)
   - [Evaluation Settings](#evaluation-settings)
-    - [LLM Judge Configuration](#llm-judge-configuration)
     - [Data Split Configuration](#data-split-configuration)
       - [Stratified Splitting Behavior](#stratified-splitting-behavior)
       - [Graceful Degradation](#graceful-degradation)
       - [Splitting Process Visualization](#splitting-process-visualization)
       - [Examples](#examples)
       - [Configuration Recommendations by Use Case](#configuration-recommendations-by-use-case)
-    - [ICL (In-Context Learning) Configuration](#icl-in-context-learning-configuration)
-      - [Example Selection Options](#example-selection-options)
-      - [Similarity Configuration](#similarity-configuration)
-      - [Embedding NIM Configuration](#embedding-nim-configuration)
   - [Fine-tuning Options](#fine-tuning-options)
     - [Training Configuration](#training-configuration)
     - [LoRA Configuration](#lora-configuration)
@@ -61,11 +56,11 @@ Learn how to configure the Data Flywheel Foundational Blueprint using this guide
 
 | Requirement Type | Details |
 |-------------------------|---------|
-| **Minimum GPU** | **Self-hosted LLM Judge**: 6× (NVIDIA H100, or A100 GPUs)<br>**Remote LLM Judge**: 2× (NVIDIA H100, or A100 GPUs) |
+| **Minimum GPU** | 2× (NVIDIA A100/H100/H200/B200 GPUs) |
 | **Cluster** | Single-node NVIDIA GPU cluster on Linux with cluster-admin permissions |
 | **Disk Space** | At least 200 GB free |
-| **Software** | Python 3.11<br>Docker Engine<br>Docker Compose v2 |
-| **Services** | Elasticsearch 8.12.2<br>MongoDB 7.0<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing) |
+| **Software** | Python 3.12<br>Docker Engine<br>Docker Compose v2 |
+| **Services** | Elasticsearch 8.12.2<br>MongoDB 7.0<br>Redis 7.2<br>FastAPI (API server)<br>Celery (task processing)<br>MLflow 2.22.0<br>Wandb 0.22.3 |
 | **Resource** | **Minimum Memory**: 1 GB (512 MB reserved for Elasticsearch)<br>**Storage**: Varies by log volume or model size<br>**Network**: Ports 8000 (API), 9200 (Elasticsearch), 27017 (MongoDB), 6379 (Redis) |
 | **Development** | Docker Compose for local development with hot reloading<br>Supports macOS (Darwin) and Linux<br>Optional: GPU support for model inference |
 | **Production** | Kubernetes cluster (recommended)<br>Resources scale with workload<br>Persistent volume support for data storage |
@@ -84,7 +79,6 @@ For detailed steps, see the official [NGC Private Registry User Guide](https://d
 
 #### NVIDIA API Key (for Remote Configurations)
 Generate an API key at [build.nvidia.com](https://build.nvidia.com) for accessing:
-- Remote LLM judge services via NVIDIA API catalog
 - Remote model inference using NVIDIA Inference Microservice (NIM)
 
 #### Hugging Face Token
@@ -105,12 +99,12 @@ You must have Git Large File Storage (LFS) installed and configured to download 
 
 ## Before You Start
 
-- Run the [Quickstart](./02-quickstart.md) to tour the functionality and default settings of the Flywheel service.
-- Run the [Notebooks](../notebooks/README.md) to understand how the Flywheel supports different use cases.
+- Run the [Quickstart](./02-quickstart.md) to tour the functionality and default settings of the developer example.
+- Run the [Notebooks](../notebooks/README.md) to understand how the developer example supports different use cases.
 
 > **Important**
 >
-> Advanced configuration such as Large-scale hyper-parameter sweeps, architecture search, or custom evaluation metrics must run directly in **NeMo microservices**. The configurations in this guide are only for the blueprint itself.
+> Advanced configuration such as large-scale hyper-parameter sweeps, architecture search, or custom evaluation metrics must run directly in **NeMo microservices**. The configurations in this guide are only for the developer example itself.
 
 > **Note**
 > 
@@ -118,7 +112,7 @@ You must have Git Large File Storage (LFS) installed and configured to download 
 
 ## Configuration File Location
 
-The Data Flywheel Foundational Blueprint uses a YAML-based configuration system. The primary configuration file is located at:
+The developer example uses a YAML-based configuration system. The primary configuration file is located at:
 
 ```bash
 config/config.yaml
@@ -126,22 +120,20 @@ config/config.yaml
 
 ## Environment Variables
 
-The Data Flywheel Foundational Blueprint relies on several environment variables for configuration. These can be set in a `.env` file in the project root or as system environment variables.
+The developer example relies on several environment variables for configuration. These can be set in a `.env` file in the project root or as system environment variables.
 
 ### Required Environment Variables
 
 | Variable | Description | Usage | Example |
 |----------|-------------|-------|---------|
 | `NGC_API_KEY` | API key for NVIDIA Cloud Foundation | NGC login and container downloads only | `nvapi-...` |
-| `NVIDIA_API_KEY` | API key for NVIDIA API Catalog | Remote LLM judge services, remote NIM access, remote model inference | `nvapi-...` |
+| `NVIDIA_API_KEY` | API key for NVIDIA API Catalog | Remote NIM access, remote model inference | `nvapi-...` |
 | `HF_TOKEN` | Hugging Face authentication token | Data uploading functionality, model access | `hf_...` |
 
 ### Optional Environment Variables
 
 | Variable | Description | Default | Usage |
 |----------|-------------|---------|-------|
-| `LLM_JUDGE_API_KEY` | API key for remote LLM judge services | Uses `NVIDIA_API_KEY` | Override default API key for remote LLM judge (supports any provider) |
-| `EMB_API_KEY` | API key for remote embedding services | Uses `NVIDIA_API_KEY` | Override default API key for remote embeddings (supports any provider) |
 | `ES_COLLECTION_NAME` | Elasticsearch collection name | "flywheel" | Data storage and retrieval |
 | `ELASTICSEARCH_URL` | Elasticsearch connection URL | "http://localhost:9200" | Database connection |
 | `MONGODB_URL` | MongoDB connection URL | "mongodb://localhost:27017" | Database connection |
@@ -186,19 +178,6 @@ export NVIDIA_API_KEY="your-nvidia-api-key"
 export HF_TOKEN="your-huggingface-token"
 ```
 
-**Using API keys from other providers for remote configurations:**
-```bash
-# Use OpenAI API key for remote LLM judge
-export LLM_JUDGE_API_KEY="sk-..."
-
-# Use Anthropic API key for remote embeddings
-export EMB_API_KEY="sk-ant-..."
-
-# Use different providers for different remote services
-export NVIDIA_API_KEY="nvapi-..."  # Default for both remote services
-export LLM_JUDGE_API_KEY="sk-..."  # Override for remote LLM judge
-export EMB_API_KEY="sk-ant-..."    # Override for remote embeddings
-```
 
 ## NeMo microservices Configuration
 
@@ -283,7 +262,7 @@ COMPOSE_PROFILES=mlflow docker compose -f deploy/docker-compose.yaml up -d --bui
 
 The `nims` section configures which models to deploy and their settings:
 
-**Default Behavior**: When a model is listed in the `nims` section, it will automatically run both base evaluation and In-Context Learning (ICL) evaluation by default.
+**Default Behavior**: When a model is listed in the `nims` section, it will automatically run base evaluation by default.
 
 **Customization Control**: Use the `customization_enabled` key to control whether the model can be fine-tuned. When enabled, the model will also run customization and evaluation on customized model using the settings defined in `customizer_configs`.
 
@@ -305,7 +284,7 @@ nims:
 | Option | Description | Required | Example |
 |--------|-------------|----------|---------|
 | `model_name` | Name of the model to deploy | Yes | "meta/llama-3.2-1b-instruct" |
-| `model_type` | Type of NIM (llm or embedding) | No | "llm" |
+| `model_type` | Type of NIM | No | "llm" |
 | `context_length` | Maximum context length in tokens | Yes | 8192 |
 | `gpus` | Number of GPUs to allocate | Yes | 1 |
 | `pvc_size` | Persistent volume claim size | No | "25Gi" |
@@ -320,62 +299,27 @@ nims:
 ### Supported Models
 
 Currently supported models include:
-- Meta Llama 3.1 8B Instruct
-- Meta Llama 3.2 1B Instruct
+
+Student models:
+
+- Meta Llama 3.1 1B Instruct
 - Meta Llama 3.2 3B Instruct
+- Meta Llama 3.2 8B Instruct
+
+Teacher models:
+
+- Meta Llama 3.3 Nemotron Super 49b v1
 - Meta Llama 3.3 70B Instruct
 
 Note: Not all models may be enabled by default in the configuration. Enable them by uncommenting and configuring the appropriate sections in `config/config.yaml`.
 
 ## Evaluation Settings
 
-The `llm_judge_config`, `data_split_config`, and `icl_config` sections control evaluation processes:
-
-### LLM Judge Configuration
-
-The `llm_judge_config` section configures the LLM used for evaluating model outputs:
-
-**NOTE: By default llm_judge_config is set to local configuration.**
-
-For local deployment, use the following configuration:
-
-```yaml
-llm_judge_config:
-  deployment_type: "local"
-  model_name: "meta/llama-3.3-70b-instruct"
-  context_length: 32768
-  gpus: 4
-  pvc_size: 25Gi
-  tag: "1.8.5"
-```
-
-| Option | Description | Required | Example |
-|--------|-------------|----------|---------|
-| `deployment_type` | Deployment type (remote or local) | Yes | "local" |
-| `model_name` | Name of the model to deploy | Yes | "meta/llama-3.3-70b-instruct" |
-| `context_length` | Maximum context length in tokens | Yes | 32768 |
-| `gpus` | Number of GPUs to allocate | Yes | 4 |
-| `pvc_size` | Persistent volume claim size | Yes | "25Gi" |
-| `tag` | Model version tag | Yes | "1.8.5" |
-
-For remote deployment, use the following configuration instead:
-
-```yaml
-llm_judge_config:
-  deployment_type: "remote"
-  url: "https://integrate.api.nvidia.com/v1/chat/completions"
-  model_name: "meta/llama-3.3-70b-instruct"
-```
-
-| Option | Description | Required | Example |
-|--------|-------------|----------|---------|
-| `deployment_type` | Deployment type (remote or local) | Yes | "remote" |
-| `url` | API endpoint for remote LLM | Yes (if remote) | "https://integrate.api.nvidia.com/v1/chat/completions" |
-| `model_name` | Model identifier | Yes | "meta/llama-3.3-70b-instruct" |
+The `data_split_config` section controls evaluation processes:
 
 ### Data Split Configuration
 
-The Data Flywheel uses **class-aware stratified splitting** powered by scikit-learn to ensure balanced representation of different tool types across your evaluation, training, and validation datasets.
+The developer example uses **class-aware stratified splitting** powered by scikit-learn to ensure balanced representation of different tool types across your evaluation, training, and validation datasets.
 
 ```yaml
 data_split_config:
@@ -394,11 +338,11 @@ data_split_config:
 | `min_total_records` | Minimum required records | 50 | Total dataset size requirement |
 | `random_seed` | Seed for reproducible splits | null | Set for reproducible results |
 | `limit` | Limit for evaluator | 10000 | Set for evaluator config limit |
-| `parse_function_arguments` | Parse function arguments to JSON | true | Data validation: converts string function arguments to JSON objects for tool calling workloads |
+| `parse_function_arguments` | Parse function arguments to JSON | true | Data validation: converts string function arguments to JSON objects |
 
 #### Stratified Splitting Behavior
 
-The flywheel automatically analyzes your data to identify different classes (tool types) and ensures balanced representation across splits:
+It automatically analyzes your data to identify different classes (tool types) and ensures balanced representation across splits:
 
 **1. Class Detection**: Records are classified by their tool usage using the `get_tool_name()` function.
 
@@ -456,7 +400,7 @@ When all records use the same tool, stratification automatically falls back to r
 > **Related Documentation**
 > 
 > - **API Usage**: See [Data Split Configuration](07-api-reference.md#data-split-configuration) for API integration
-> - **Best Practices**: See [Tuning Guidelines](05-limitations-best-practices.md#tune-data_split_config-and-icl_config-as-you-learn-workload-characteristics)
+> - **Best Practices**: See [Tuning Guidelines](05-limitations-best-practices.md#tune-data_split_config-as-you-learn-workload-characteristics)
 > - **Validation Process**: See [Dataset Validation](dataset-validation.md) for data quality requirements
 > - **Implementation Details**: Check `src/lib/flywheel/util.py` for source code
 >
@@ -470,109 +414,6 @@ When all records use the same tool, stratification automatically falls back to r
 > You can override just the parameters you want to change - any parameters not specified in the POST request will automatically use their default values shown in the table above. For instance, you could override just the `eval_size` while keeping the default values for all other parameters.
 >
 > See the [Run a Job section](02-quickstart.md#run-a-job) in the Quickstart Guide for a complete example.
-
-### ICL (In-Context Learning) Configuration
-
-The ICL configuration supports two example selection methods to optimize few-shot learning performance:
-
-```yaml
-icl_config:
-  max_context_length: 32768
-  reserved_tokens: 4096
-  max_examples: 3
-  min_examples: 1
-  example_selection: "semantic_similarity"  # or "uniform_distribution"
-  similarity_config:
-    relevance_ratio: 0.7
-    embedding_nim_config:
-      deployment_type: "remote"
-      url: "https://integrate.api.nvidia.com/v1/embeddings"
-      model_name: "nvidia/llama-3.2-nv-embedqa-1b-v2"
-```
-
-| Option | Description | Default | Notes |
-|--------|-------------|---------|-------|
-| `max_context_length` | Maximum tokens in context | 32768 | Model dependent |
-| `reserved_tokens` | Tokens reserved for system | 4096 | For prompts and metadata |
-| `max_examples` | Maximum ICL examples | 3 | Upper limit per context |
-| `min_examples` | Minimum ICL examples | 1 | Lower limit per context |
-| `example_selection` | ICL selection method | "semantic_similarity" | See [Example Selection Options](#example-selection-options) |
-| `similarity_config` | Similarity configuration | Required for semantic_similarity | Required for `semantic_similarity` selection |
-
-#### Example Selection Options
-
-The Data Flywheel supports two methods for selecting in-context learning examples:
-
-**1. Uniform Distribution** (`uniform_distribution`)
-- **Description**: Distributes examples evenly across different tool types
-- **Use Case**: Provides balanced representation of all available tools
-- **Behavior**: For tool-calling workloads, ensures each tool gets roughly equal representation in the ICL examples
-- **Requirements**: No additional configuration needed
-
-**2. Semantic Similarity** (`semantic_similarity`)
-- **Description**: Selects examples based on semantic similarity using vector embeddings
-- **Use Case**: Finds the most relevant examples for each evaluation query
-- **Behavior**: Uses an embedding model to identify semantically similar examples from historical data
-- **Requirements**: Requires `similarity_config` to be configured
-
-#### Similarity Configuration
-
-When using `semantic_similarity`, you must configure the `similarity_config` section:
-
-```yaml
-icl_config:
-  example_selection: "semantic_similarity"
-  similarity_config:
-    relevance_ratio: 0.7
-    embedding_nim_config:
-      deployment_type: "remote"
-      url: "https://integrate.api.nvidia.com/v1/embeddings"
-      model_name: "nvidia/llama-3.2-nv-embedqa-1b-v2"
-```
-
-| Option | Description | Default | Notes |
-|--------|-------------|---------|-------|
-| `relevance_ratio` | Ratio of examples selected by pure relevance | 0.7 | Range: 0.0-1.0. Higher values prioritize relevance; lower values ensure tool diversity |
-| `embedding_nim_config` | Embedding model configuration | Required | See [Embedding NIM Configuration](#embedding-nim-configuration) below |
-
-#### Embedding NIM Configuration
-
-When using `semantic_similarity`, you must configure an embedding model within the `similarity_config` section:
-
-
-**Local Deployment** (`deployment_type: "local"`):
-- Spins up a dedicated embedding NIM in your cluster
-- Requires GPU resources and storage
-- Provides isolated embedding generation
-
-```yaml
-icl_config:
-  example_selection: "semantic_similarity"
-  similarity_config:
-    relevance_ratio: 0.7
-    embedding_nim_config:
-      deployment_type: "local"
-      model_name: "nvidia/llama-3.2-nv-embedqa-1b-v2"
-      context_length: 32768
-      gpus: 1
-      pvc_size: "25Gi"
-      tag: "1.9.0"
-```
-
-**Remote Deployment** (`deployment_type: "remote"`):
-- Uses an external embedding API endpoint
-- Requires API key configuration
-
-```yaml
-icl_config:
-  example_selection: "semantic_similarity"
-  similarity_config:
-    relevance_ratio: 0.7
-    embedding_nim_config:
-      deployment_type: "remote"
-      url: "https://integrate.api.nvidia.com/v1/embeddings"
-      model_name: "nvidia/llama-3.2-nv-embedqa-1b-v2"
-```
 
 ## Fine-tuning Options
 
@@ -610,7 +451,7 @@ lora_config:
 
 ## Model Customization
 
-The Data Flywheel Blueprint supports model customization (fine-tuning) through the NeMo Customizer service. This feature enables Parameter-Efficient Fine-Tuning (PEFT) using LoRA (Low-Rank Adaptation) to efficiently customize base models on your specific datasets.
+The developer example supports model customization (fine-tuning) through the NeMo Customizer service. This feature enables Parameter-Efficient Fine-Tuning (PEFT) using LoRA (Low-Rank Adaptation) to efficiently customize base models on your specific datasets.
 
 ### Overview
 
@@ -748,7 +589,7 @@ nims:
 
 ## Data Infrastructure
 
-The Data Flywheel uses several services for data storage and processing:
+The developer example uses several services for data storage and processing:
 
 ### Storage Services
 
@@ -767,7 +608,7 @@ The Data Flywheel uses several services for data storage and processing:
 
 ## Deployment Options
 
-The Data Flywheel Blueprint supports multiple deployment strategies for different environments and requirements.
+The developer example supports multiple deployment strategies for different environments and requirements.
 
 ### Development Environment
 

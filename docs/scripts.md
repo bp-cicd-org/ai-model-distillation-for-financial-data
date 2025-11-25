@@ -1,6 +1,6 @@
 # Scripts Directory
 
-Efficiently manage and maintain the Data Flywheel Blueprint application using the following scripts. These utilities help automate cleanup, manage resources, and streamline your workflow.
+Efficiently manage and maintain the developer example application using the following scripts. These utilities help automate cleanup, manage resources, and streamline your workflow.
 
 ## Prerequisites
 
