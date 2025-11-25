@@ -42,11 +42,11 @@ You can get started quickly and achieve similar results using your own infrastru
 
 Demonstrates model distillation on financial news headlines classification (13 event categories: market movements, earnings, regulatory changes, etc.).
 
-**What you'll learn:**
-- Generate labeled data using the Llama 3.3 Nemotron 49B teacher model (or Llama 3.3 70B)
-- Distill to smaller models (Llama 3.2 1B/3B, Llama 3.1 8B)
-- Evaluate using F1-score metrics for classification accuracy
-- Deploy cost-efficient models matching teacher performance
+**The Workflow:**
+- Teacher: Generate labeled data using Llama 3.3 Nemotron 49B (or Llama 3.3 70B).
+- Distill: Transfer knowledge to smaller models (Llama 3.2 1B/3B, Llama 3.1 8B).
+- Evaluate: Use F1-score metrics to measure classification accuracy.
+- Deploy: Serve cost-efficient models matching teacher performance.
 
 **Results:**
 - 95% F1-score with fine-tuned 3B and 8B models (matching Nemotron 49B performance)
@@ -76,7 +76,7 @@ Production traffic flows to a centralized logging service. From there, evaluatio
 
 ### Where the NeMo microservices Come In
 
-NeMo Microservices provides programmatic control of datasets, fine-tuning, evaluation, and inference. Automates experiment exploration with sensible defaults, surfacing promising candidates for ML engineer analysis.
+NeMo Microservices provides programmatic control of datasets, fine-tuning, evaluation, and inference. Automates experiment exploration with sensible defaults, surfacing promising candidates for further analysis.
 
 ```mermaid
 flowchart TD
@@ -98,16 +98,10 @@ evaluator --> results["Flywheel Results"]
 Automated process using NeMo microservices:
 
 1. Ingest: Pull data from log store and de-duplicate by task.
-
 2. Curate: Create eval/fine-tuning datasets using stratified splitting for balanced representation.
-
 3. Store: Manage datasets in NeMo Datastore.
-
 4. Train: Launch fine-tuning jobs (NeMo Customizer using LoRA).
-
 5. Score: Run F1-score evaluations (NeMo Evaluator).
-
-System narrows vast options to manageable promising candidates. Scale across multiple NIMs using NeMo Deployment Manager for dynamic resource allocation.
 
 ## How to Use This Developer Example
 
@@ -322,10 +316,12 @@ Results from financial news headlines dataset with 13 event categories:
 * [Complete Documentation Guide](./docs/README.md) - Role-based navigation and comprehensive documentation index
 
 **External Resources:**
+* [Build Efficient Financial Data Workflows with AI Model Distillation](final url)
 * [Enhance Your AI Agent with Data Flywheels Using NVIDIA NeMo Microservices](https://developer.nvidia.com/blog/enhance-your-ai-agent-with-data-flywheels-using-nvidia-nemo-microservices/)
 * [Nvidia Releases NeMo Microservices To Streamline AI Agent Development](https://www.forbes.com/sites/janakirammsv/2025/04/25/nvidia-releases-nemo-microservices-to-streamline-ai-agent-development/)
 * [Overview of NeMo Microservices](https://docs.nvidia.com/nemo/microservices/latest/about/index.html)
 * [Enterprises Onboard AI Teammates Faster With NVIDIA NeMo Tools to Scale Employee Productivity](https://blogs.nvidia.com/blog/nemo-enterprises-ai-teammates-employee-productivity/)
+* [DLI Course: The Art of Compressing LLMs: Pruning, Distillation, and Quantization Demystified](https://learn.nvidia.com/courses/course-detail?course_id=course-v1:DLI+S-FX-24+V1)
 
 ## Technical Details
 
@@ -374,30 +370,6 @@ The Data Flywheel Blueprint empowers organizations to accelerate the optimizatio
    - Easily integrates with your current logging and workload tagging practices.
    - Supports enhanced workload descriptions for improved future classification.
    - Leverages robust infrastructure—including Elasticsearch, MongoDB, Redis, and NeMo microservices—to store data, build datasets, run evaluations, fine-tune models, and re-evaluate results.
-
-To get the most value from this developer example, ensure you have:
-
-- An existing generative AI application in production.
-- Logging of prompt/completion traffic, with workload tagging (such as routes, nodes, or agent steps).
-- (Optional, but recommended) Descriptive metadata for each workload to support future classification.
-- The ability to deploy and operate supporting infrastructure (Elasticsearch, MongoDB, Redis, and NeMo microservices) for data storage, dataset creation, evaluation, and fine-tuning.
-
-By following this developer example, you can confidently advance your AI model optimization initiatives, leveraging a process that is transparent, adaptable, and focused on measurable outcomes.
-
-#### Future Roadmap
-The Data Flywheel Blueprint purposely keeps the first release simple. Areas we are actively exploring for future versions include:
-
-| Theme | Example Ideas |
-|-------|--------------|
-| **Automated Data Collection** | Integrated collection of model inputs/outputs, latency, and metadata |
-| **Visualization Dashboards** | Pre-built Grafana/Kibana dashboards for cost, latency, drift and accuracy trends |
-| **Agentic Observability & Prompt Insights** | Detect regression, drift, or improvement trends based on performance telemetry |
-| **Dynamic Configuration Overrides** | Runtime overrides for config.yaml settings via API or environment variables |
-| **Data Governance & Privacy** | PII redaction pipeline support for logs and datasets; fine-grained RBAC on dataset access and usage |
-| **Data Governance & Privacy** | Enable experiment tracking tooling for granular tracking of fine-tune runs, metrics, artifacts, and config diffs |
-| **Hyper-parameter Sweeps** | Support launching NeMo microservices hyper-parameter sweeps from external tools (e.g. Flywheel) and pulling results back for analysis and visualization | |
-| **Smarter Dataset Construction** | Heuristics or LLM-based parsing to derive eval vs. fine-tune splits from logs; support for DPO/KTO pipelines or filtering by thumbs-up/down signal |
-| **Model & Backend Extensibility** | Add support for additional NIMs such as Qwen, LLaMA-Nemotron, and Mistral; include testing and evaluation support for quantized models |
 
 ### Software Components
 
@@ -574,8 +546,8 @@ This NVIDIA AI BLUEPRINT is licensed under the [Apache License, Version 2.0.](./
 
 The software and materials are governed by the NVIDIA Software License Agreement (found at https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/) and the Product-Specific Terms for NVIDIA AI Products (found at https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/), except that models are governed by the AI Foundation Models Community License Agreement (found at NVIDIA Agreements | Enterprise Software | NVIDIA Community Model License) and NVIDIA dataset is governed by the NVIDIA Asset License Agreement found [here](./LICENSE-dataset).
 
-For Meta/llama-3.1-70b-instruct model the Llama 3.1 Community License Agreement, for nvidia/llama-3.2-nv-embedqa-1b-v2model the Llama 3.2 Community License Agreement, and for the nvidia/llama-3.2-nv-rerankqa-1b-v2 model the Llama 3.2 Community License Agreement. Built with Llama.
+For Meta/llama-3.1-8b-instruct model the Llama 3.1 Community License Agreement, for Meta/llama-3.2-1b-instruct and Meta/llama-3.2-3b-instruct the Llama 3.2 Community License Agreement, and for the Meta/llama-3.3-70b-instruct model the Llama 3.3 Community License Agreement. Built with Llama.
 
 ## Disclaimer:
 
-The Data Flywheel Blueprint is shared as reference and is provided "as is". The security in the production environment is the responsibility of the end users deploying it. When deploying in a production environment, please have security experts review any potential risks and threats; define the trust boundaries, implement logging and monitoring capabilities,secure the communication channels, integrate AuthN & AuthZ with appropriate controls.
+The AI Model Distillation for Financial Data developer example and Data Flywheel Blueprint are shared as reference and is provided "as is". The security in the production environment is the responsibility of the end users deploying it. When deploying in a production environment, please have security experts review any potential risks and threats; define the trust boundaries, implement logging and monitoring capabilities,secure the communication channels, integrate AuthN & AuthZ with appropriate controls.
