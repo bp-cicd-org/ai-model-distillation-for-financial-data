@@ -6,6 +6,9 @@ This quickstart points users to a public financial news headlines dataset on Hug
 
 ## Prerequisites
 
+> **📖 For complete system requirements:** See [System Requirements](03-configuration.md#system-requirements)  
+> **🔧 Need help?** See [FAQ & Troubleshooting](faq-troubleshooting.md) for common setup issues
+
 ### Review Minimum System Requirements
 
 | Requirement Type | Details |

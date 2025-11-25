@@ -22,7 +22,7 @@ Welcome to the AI Model Distillation for Financial Data developer example docume
 → Check out [Data Logging for AI Apps](data-logging.md)
 
 **🚨 Troubleshoot issues**  
-→ See [Limitations & Best Practices](05-limitations-best-practices.md)
+→ See [FAQ & Troubleshooting](faq-troubleshooting.md) or [Limitations & Best Practices](05-limitations-best-practices.md)
 
 ---
 
@@ -47,6 +47,7 @@ Welcome to the AI Model Distillation for Financial Data developer example docume
 - **Start here:** [Production Deployment](10-production-deployment.md)
 - **Installation:** [Helm Installation](11-helm-installation.md)
 - **Operations:** [Scripts Guide](scripts.md)
+- **Troubleshooting:** [FAQ & Troubleshooting](faq-troubleshooting.md)
 
 ---
 
@@ -84,6 +85,7 @@ Welcome to the AI Model Distillation for Financial Data developer example docume
 | Document | Purpose | When to Read |
 |----------|---------|--------------|
 | **[API Reference](07-api-reference.md)** | Complete API documentation | Building integrations |
+| **[FAQ & Troubleshooting](faq-troubleshooting.md)** | Quick fixes for common issues | Debugging errors, setup issues |
 | **[Limitations & Best Practices](05-limitations-best-practices.md)** | Common issues and solutions | Troubleshooting, optimization |
 
 ---
@@ -106,7 +108,8 @@ Welcome to the AI Model Distillation for Financial Data developer example docume
 1. [Configuration Guide](03-configuration.md) *(plan your setup)*
 2. [Production Deployment](10-production-deployment.md) *(deployment architecture)*
 3. [Helm Installation](11-helm-installation.md) *(step-by-step install)*
-4. [Limitations & Best Practices](05-limitations-best-practices.md) *(avoid common pitfalls)*
+4. [FAQ & Troubleshooting](faq-troubleshooting.md) *(quick fixes for common issues)*
+5. [Limitations & Best Practices](05-limitations-best-practices.md) *(avoid common pitfalls)*
 
 ### 🔬 Research & Development
 1. [NeMo Platform Integration](09-nemo-platform-integration.md) *(advanced features)*

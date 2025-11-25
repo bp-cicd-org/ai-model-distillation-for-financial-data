@@ -16,7 +16,8 @@ The AI Model Distillation for Financial Data developer example provides a compre
 
 ## Prerequisites
 
-> **📖 For complete prerequisites:** See [System Requirements](03-configuration.md#system-requirements)
+> **📖 For complete prerequisites:** See [System Requirements](03-configuration.md#system-requirements)  
+> **🔧 Troubleshooting:** See [FAQ & Troubleshooting](faq-troubleshooting.md) for common issues and solutions
 
 ### Tools and Access
 
