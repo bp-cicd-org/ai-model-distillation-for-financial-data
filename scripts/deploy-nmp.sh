@@ -597,7 +597,9 @@ setup_ngc_and_helm() {
   # Load .env file if it exists
   if [[ -f ~/.env ]]; then
     log "Loading environment from ~/.env"
-    export $(grep -v '^#' ~/.env | grep -v '^$' | xargs)
+    set -a  # automatically export all variables
+    source ~/.env
+    set +a  # stop automatically exporting
   fi
 
   # Handle NGC API key prompting even when progress bar is enabled
