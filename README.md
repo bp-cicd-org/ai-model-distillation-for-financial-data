@@ -227,12 +227,14 @@ uv run python scripts/generate_openapi.py
 
 ## License
 
-This NVIDIA AI BLUEPRINT is licensed under the [Apache License, Version 2.0.](./LICENSE) This project will download and install additional third-party open source software projects and containers. Review [the license terms of these open source projects](./LICENSE-3rd-party.txt) before use.
+Use of the jupyter notebook and scripts is governed by the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0.txt). Use of the Nemo Evaluator and Customizer microservices is governed by the [NVIDIA Software License Agreement](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement) and [Product-Specific Terms for NVIDIA AI Products](https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products). Use of the Llama-3.1-8B-Instruct, Llama-3.1-70B-Instruct, Llama-3.2-1B-Instruct, and Llama 3.3-70B-Instruct models is governed by the [NVIDIA Community Model License](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-community-models-license/). Use of the Llama-3.3-Nemotron-Super-49B-v1 and Llama-3.2-3B-Instruct models is governed by the [NVIDIA Open Model License Agreement](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/). 
 
-The software and materials are governed by the NVIDIA Software License Agreement (found at https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/) and the Product-Specific Terms for NVIDIA AI Products (found at https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/), except that models are governed by the AI Foundation Models Community License Agreement (found at NVIDIA Agreements | Enterprise Software | NVIDIA Community Model License) and NVIDIA dataset is governed by the NVIDIA Asset License Agreement found [here](./LICENSE-dataset).
+### Additional Information
 
-For Meta/llama-3.1-8b-instruct model the Llama 3.1 Community License Agreement, for Meta/llama-3.2-1b-instruct and Meta/llama-3.2-3b-instruct the Llama 3.2 Community License Agreement, and for the Meta/llama-3.3-70b-instruct model the Llama 3.3 Community License Agreement. Built with Llama.
+[Llama 3.1 Community License Agreement](https://www.llama.com/llama3_1/license/) for Llama-3.1-8B-Instruct and Llama-3.1-70B-Instruct. [Llama 3.2 Community License Agreement](https://www.llama.com/llama3_2/license/) for Llama-3.2-1B-Instruct and Llama-3.2-3B-Instruct. [Llama 3.3 Community License Agreement](https://www.llama.com/llama3_3/license/) for Llama 3.3-70B-Instruct and Llama-3.3-Nemotron-Super-49B-v1. Built with Llama.
 
-## Disclaimer:
+
+
+## Disclaimer
 
 The AI Model Distillation for Financial Data developer example and Data Flywheel Blueprint are shared as reference and is provided "as is". The security in the production environment is the responsibility of the end users deploying it. When deploying in a production environment, please have security experts review any potential risks and threats; define the trust boundaries, implement logging and monitoring capabilities,secure the communication channels, integrate AuthN & AuthZ with appropriate controls.
