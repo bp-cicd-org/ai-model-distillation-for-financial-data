@@ -516,11 +516,17 @@ jobs:
                 echo ""
                 echo "=== Executing Notebook ==="
                 mkdir -p ${NOTEBOOK_OUTPUT_DIR}
+                
+                # Build skip-cells arguments
+                SKIP_CELLS_ARGS="--skip-cells 3 --skip-cells 9"
+                
+                echo "Running notebook with skip-cells: $SKIP_CELLS_ARGS"
+                
                 uv run python /tmp/notebook-runner-repo/utils/notebook_runner/notebook_runner_nbclient.py \
                   -f ${NOTEBOOK_PATH} \
                   --output-dir ${NOTEBOOK_OUTPUT_DIR} \
                   --timeout 3600 \
-                  --skip-cells 3 --skip-cells 9 \
+                  $SKIP_CELLS_ARGS \
                   -e NVIDIA_API_KEY=${NVIDIA_API_KEY} \
                   -e NGC_API_KEY=${NGC_API_KEY} \
                   -e HF_TOKEN=${HF_TOKEN} \
