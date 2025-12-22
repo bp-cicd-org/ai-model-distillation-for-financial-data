@@ -295,13 +295,32 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          lfs: true
+          lfs: false
           fetch-depth: 0
 
-      - name: Setup Git LFS
+      - name: Install and Setup Git LFS
         run: |
+          echo "=========================================="
+          echo "Installing Git LFS..."
+          echo "=========================================="
+          
+          # Install git-lfs if not available
+          if ! command -v git-lfs &> /dev/null; then
+            if command -v apt-get &> /dev/null; then
+              sudo apt-get update && sudo apt-get install -y git-lfs
+            elif command -v yum &> /dev/null; then
+              sudo yum install -y git-lfs
+            elif command -v dnf &> /dev/null; then
+              sudo dnf install -y git-lfs
+            else
+              echo "[FAILED] Cannot install Git LFS automatically"
+              exit 1
+            fi
+          fi
+          
           git lfs install
           git lfs pull
+          echo "[OK] Git LFS setup complete"
 
       - name: Create Environment File
         run: |
