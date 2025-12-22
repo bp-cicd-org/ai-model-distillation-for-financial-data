@@ -492,10 +492,12 @@ jobs:
               echo "=== GPU Status ==="
               nvidia-smi
               
-              # Install Python dependencies
+              # Install Python dependencies using uv
               echo ""
               echo "=== Installing Python Dependencies ==="
-              pip install --upgrade pip uv --break-system-packages
+              # Install uv using pip (upgrade pip first to support newer features)
+              python3 -m pip install --upgrade pip
+              python3 -m pip install uv
               
               # Clone notebook runner if GPU requirements met
               if [ "${CAN_RUN_NOTEBOOK}" = "true" ]; then
@@ -506,6 +508,7 @@ jobs:
                 echo ""
                 echo "=== Installing Project Dependencies ==="
                 cd /workspace
+                # Use uv sync to properly resolve dependencies (handles pyarrow conflict)
                 uv sync
                 uv pip install nbclient nbformat jupyter ipykernel
                 uv run python -m ipykernel install --user --name python3 --display-name "Python 3"
