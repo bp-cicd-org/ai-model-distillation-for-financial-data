@@ -5,12 +5,8 @@
 name: Deploy Action Workflow Services
 
 on:
-  # Trigger on push to main/master branches
+  # Trigger on push to any branch
   push:
-    branches:
-      - main
-      - master
-      - develop
     paths:
       # Only trigger when relevant files change
       - 'src/**'
@@ -20,12 +16,8 @@ on:
       - 'pyproject.toml'
       - '.github/workflows/deploy-action-workflow.yaml'
 
-  # Trigger on pull requests to main/master branches
+  # Trigger on pull requests to any branch
   pull_request:
-    branches:
-      - main
-      - master
-      - develop
     paths:
       - 'src/**'
       - 'deploy/**'
