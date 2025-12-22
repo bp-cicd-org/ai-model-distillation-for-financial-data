@@ -44,7 +44,7 @@ env:
   # Required environment variables from secrets
   NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+  GH_TOKEN: ${{ secrets.GH_TOKEN }}
   MONGO_USERNAME: ${{ secrets.MONGO_USERNAME || 'admin' }}
   MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD || '' }}
   REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD || '' }}
@@ -55,7 +55,7 @@ env:
   TAG: "0.3.0"
   
   # Notebook runner configuration
-  NOTEBOOK_RUNNER_REPO: "https://gitlab-master.nvidia.com/cloud-service-qa/Blueprint/blueprint-github-test.git"
+  NOTEBOOK_RUNNER_REPO: "https://github.com/bp-cicd-org/qa-tester.git"
   NOTEBOOK_PATH: "notebooks/ai-model-distillation-financial-data.ipynb"
   NOTEBOOK_OUTPUT_DIR: "notebook_output"
 
@@ -106,12 +106,12 @@ jobs:
             echo "[OK] NGC_API_KEY is set"
           fi
           
-          # Check GITLAB_TOKEN
-          if [ -z "${{ secrets.GITLAB_TOKEN }}" ]; then
-            echo "[FAILED] GITLAB_TOKEN is not set"
-            MISSING_SECRETS="${MISSING_SECRETS}GITLAB_TOKEN "
+          # Check GH_TOKEN
+          if [ -z "${{ secrets.GH_TOKEN }}" ]; then
+            echo "[FAILED] GH_TOKEN is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}GH_TOKEN "
           else
-            echo "[OK] GITLAB_TOKEN is set"
+            echo "[OK] GH_TOKEN is set"
           fi
           
           # Check MONGO_PASSWORD (optional)
@@ -300,8 +300,9 @@ jobs:
           echo "Cloning Notebook Runner Repository..."
           echo "=========================================="
           
-          # Clone the GitLab repository containing notebook runner
-          git clone https://oauth2:${GITLAB_TOKEN}@gitlab-master.nvidia.com/cloud-service-qa/Blueprint/blueprint-github-test.git /tmp/notebook-runner-repo
+          # Clone the GitHub repository containing notebook runner
+          # Use GH_TOKEN for authentication (works for both public and private repos)
+          git clone https://x-access-token:${GH_TOKEN}@github.com/bp-cicd-org/qa-tester.git /tmp/notebook-runner-repo
           
           if [ $? -eq 0 ]; then
             echo "[OK] Successfully cloned notebook runner repository"
