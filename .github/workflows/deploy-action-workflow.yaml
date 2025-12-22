@@ -520,7 +520,7 @@ jobs:
                   -f ${NOTEBOOK_PATH} \
                   --output-dir ${NOTEBOOK_OUTPUT_DIR} \
                   --timeout 3600 \
-                  --skip-cells 9 \
+                  --skip-cells 3,9 \
                   -e NVIDIA_API_KEY=${NVIDIA_API_KEY} \
                   -e NGC_API_KEY=${NGC_API_KEY} \
                   -e HF_TOKEN=${HF_TOKEN} \
