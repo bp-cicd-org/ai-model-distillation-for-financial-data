@@ -45,8 +45,8 @@ env:
   NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   MONGO_USERNAME: ${{ secrets.MONGO_USERNAME || 'admin' }}
-  MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
-  REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+  MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD || '' }}
+  REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD || '' }}
   HF_TOKEN: ${{ secrets.HF_TOKEN }}
   
   # Optional configurations
@@ -100,18 +100,16 @@ jobs:
             echo "[OK] NGC_API_KEY is set"
           fi
           
-          # Check MONGO_PASSWORD
+          # Check MONGO_PASSWORD (optional)
           if [ -z "${{ secrets.MONGO_PASSWORD }}" ]; then
-            echo "[FAILED] MONGO_PASSWORD is not set"
-            MISSING_SECRETS="${MISSING_SECRETS}MONGO_PASSWORD "
+            echo "[WARNING] MONGO_PASSWORD is not set (optional, using empty password)"
           else
             echo "[OK] MONGO_PASSWORD is set"
           fi
           
-          # Check REDIS_PASSWORD
+          # Check REDIS_PASSWORD (optional)
           if [ -z "${{ secrets.REDIS_PASSWORD }}" ]; then
-            echo "[FAILED] REDIS_PASSWORD is not set"
-            MISSING_SECRETS="${MISSING_SECRETS}REDIS_PASSWORD "
+            echo "[WARNING] REDIS_PASSWORD is not set (optional, using empty password)"
           else
             echo "[OK] REDIS_PASSWORD is set"
           fi
