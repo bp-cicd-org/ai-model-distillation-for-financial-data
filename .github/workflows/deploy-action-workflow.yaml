@@ -65,6 +65,7 @@ jobs:
     runs-on: arc-runner-set-oke-org-poc-2-gpu
     outputs:
       checks_passed: ${{ steps.final_check.outputs.passed }}
+      can_run_notebook: ${{ steps.check_gpu.outputs.can_run_notebook }}
     steps:
       - name: Display Runner Information
         run: |
@@ -211,7 +212,7 @@ jobs:
           
           # Get available disk space in GB
           AVAILABLE_GB=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
-          REQUIRED_GB=50
+          REQUIRED_GB=200
           
           echo "Available disk space: ${AVAILABLE_GB}GB"
           echo "Required minimum: ${REQUIRED_GB}GB"
@@ -254,18 +255,128 @@ jobs:
           echo "Checking GPU Availability..."
           echo "=========================================="
           
-          if command -v nvidia-smi &> /dev/null; then
-            nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
-            GPU_COUNT=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
-            echo ""
-            echo "[OK] Found $GPU_COUNT GPU(s)"
-            
-            if [ "$GPU_COUNT" -lt 2 ]; then
-              echo "[WARNING] Recommended minimum is 2 GPUs for full functionality"
-            fi
-          else
+          CAN_RUN_NOTEBOOK="false"
+          REQUIRED_GPUS=2
+          REQUIRED_DRIVER_VERSION="560.35.03"
+          
+          if ! command -v nvidia-smi &> /dev/null; then
             echo "[WARNING] nvidia-smi not found. GPU may not be available."
-            echo "   Some features may not work without GPU."
+            echo "[WARNING] Notebook execution will be SKIPPED."
+            echo "can_run_notebook=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "GPU Information:"
+          nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
+          echo ""
+          
+          # Check GPU count
+          GPU_COUNT=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+          echo "Found $GPU_COUNT GPU(s), Required: $REQUIRED_GPUS"
+          
+          if [ "$GPU_COUNT" -lt "$REQUIRED_GPUS" ]; then
+            echo "[WARNING] Insufficient GPUs. Need at least $REQUIRED_GPUS, have $GPU_COUNT"
+            echo "[WARNING] Notebook execution will be SKIPPED."
+            echo "can_run_notebook=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "[OK] GPU count check passed"
+          
+          # Check GPU models (A100 80GB, H100, H200, RTX 6000, RTX 5880)
+          VALID_GPUS=0
+          while IFS= read -r gpu; do
+            echo "Checking GPU: $gpu"
+            if [[ "$gpu" == *"A100"*"80GB"* ]] || [[ "$gpu" == *"H100"* ]] || [[ "$gpu" == *"H200"* ]] || [[ "$gpu" == *"6000"* ]] || [[ "$gpu" == *"5880"* ]]; then
+              echo "  [OK] Valid GPU model: $gpu"
+              VALID_GPUS=$((VALID_GPUS + 1))
+            else
+              echo "  [WARNING] GPU model may not be supported: $gpu"
+            fi
+          done < <(nvidia-smi --query-gpu=name --format=csv,noheader)
+          
+          if [ "$VALID_GPUS" -lt "$REQUIRED_GPUS" ]; then
+            echo "[WARNING] Insufficient valid GPUs. Need at least $REQUIRED_GPUS A100 80GB/H100/H200/RTX 6000/RTX 5880, found $VALID_GPUS"
+            echo "[WARNING] Notebook execution will be SKIPPED."
+            echo "can_run_notebook=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "[OK] GPU model check passed"
+          
+          # Check GPU driver version
+          DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1)
+          echo "GPU Driver version: $DRIVER_VERSION, Required: >= $REQUIRED_DRIVER_VERSION"
+          
+          if [[ "$(printf '%s\n' "$REQUIRED_DRIVER_VERSION" "$DRIVER_VERSION" | sort -V | head -n1)" != "$REQUIRED_DRIVER_VERSION" ]]; then
+            echo "[WARNING] GPU driver version $DRIVER_VERSION is below required $REQUIRED_DRIVER_VERSION"
+            echo "[WARNING] Notebook execution will be SKIPPED."
+            echo "can_run_notebook=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "[OK] GPU driver version check passed"
+          
+          echo ""
+          echo "[OK] All GPU checks passed. Notebook execution will be ENABLED."
+          CAN_RUN_NOTEBOOK="true"
+          echo "can_run_notebook=true" >> $GITHUB_OUTPUT
+
+      - name: Check NVIDIA Container Toolkit
+        id: check_nvidia_ctk
+        run: |
+          echo "=========================================="
+          echo "Checking NVIDIA Container Toolkit..."
+          echo "=========================================="
+          
+          REQUIRED_CTK_VERSION="1.16.2"
+          
+          if ! command -v nvidia-ctk &> /dev/null; then
+            echo "[WARNING] nvidia-ctk not found."
+            echo "[WARNING] NVIDIA Container Toolkit may not be installed."
+            exit 0
+          fi
+          
+          CTK_VERSION=$(nvidia-ctk --version 2>/dev/null | head -n1 | awk '{print $NF}' || echo "0.0.0")
+          echo "NVIDIA Container Toolkit version: $CTK_VERSION, Required: >= $REQUIRED_CTK_VERSION"
+          
+          if [[ "$CTK_VERSION" == "0.0.0" ]]; then
+            echo "[WARNING] Could not determine nvidia-ctk version"
+            exit 0
+          fi
+          
+          if [[ "$(printf '%s\n' "$REQUIRED_CTK_VERSION" "$CTK_VERSION" | sort -V | head -n1)" != "$REQUIRED_CTK_VERSION" ]]; then
+            echo "[WARNING] NVIDIA Container Toolkit version $CTK_VERSION is below required $REQUIRED_CTK_VERSION"
+          else
+            echo "[OK] NVIDIA Container Toolkit version check passed"
+          fi
+
+      - name: Check Kubernetes Tools
+        id: check_k8s_tools
+        run: |
+          echo "=========================================="
+          echo "Checking Kubernetes Tools..."
+          echo "=========================================="
+          
+          # Check minikube
+          if command -v minikube &> /dev/null; then
+            MINIKUBE_VERSION=$(minikube version --short 2>/dev/null || echo "unknown")
+            echo "[OK] minikube installed: $MINIKUBE_VERSION"
+          else
+            echo "[WARNING] minikube not found (will be installed by notebook if needed)"
+          fi
+          
+          # Check kubectl
+          if command -v kubectl &> /dev/null; then
+            KUBECTL_VERSION=$(kubectl version --client -o json 2>/dev/null | jq -r '.clientVersion.gitVersion' || echo "unknown")
+            echo "[OK] kubectl installed: $KUBECTL_VERSION"
+          else
+            echo "[WARNING] kubectl not found (will be installed by notebook if needed)"
+          fi
+          
+          # Check helm
+          if command -v helm &> /dev/null; then
+            HELM_VERSION=$(helm version --template='{{.Version}}' 2>/dev/null || echo "unknown")
+            echo "[OK] helm installed: $HELM_VERSION"
+          else
+            echo "[WARNING] helm not found (will be installed by notebook if needed)"
           fi
 
       - name: Final Pre-check Summary
@@ -276,6 +387,9 @@ jobs:
           echo "=========================================="
           echo ""
           echo "All critical checks passed. Ready for deployment."
+          echo ""
+          echo "Notebook Execution: ${{ steps.check_gpu.outputs.can_run_notebook == 'true' && 'ENABLED' || 'DISABLED (GPU requirements not met)' }}"
+          echo ""
           echo "passed=true" >> $GITHUB_OUTPUT
 
   deploy:
@@ -295,6 +409,7 @@ jobs:
           python-version: '3.11'
 
       - name: Clone Notebook Runner Repository
+        if: needs.pre-check.outputs.can_run_notebook == 'true'
         run: |
           echo "=========================================="
           echo "Cloning Notebook Runner Repository..."
@@ -313,6 +428,7 @@ jobs:
           fi
 
       - name: Install Notebook Runner Dependencies
+        if: needs.pre-check.outputs.can_run_notebook == 'true'
         run: |
           echo "=========================================="
           echo "Installing Notebook Runner Dependencies..."
@@ -332,7 +448,19 @@ jobs:
           
           echo "[OK] Dependencies installed"
 
+      - name: Skip Notebook Notification
+        if: needs.pre-check.outputs.can_run_notebook != 'true'
+        run: |
+          echo "=========================================="
+          echo "[WARNING] Notebook Execution SKIPPED"
+          echo "=========================================="
+          echo ""
+          echo "GPU requirements not met. Skipping notebook execution."
+          echo "Proceeding with REST API deployment only."
+          echo ""
+
       - name: Execute Notebook and Generate HTML
+        if: needs.pre-check.outputs.can_run_notebook == 'true'
         run: |
           echo "=========================================="
           echo "Executing Notebook..."
@@ -367,6 +495,7 @@ jobs:
           fi
 
       - name: Upload Notebook HTML Report
+        if: needs.pre-check.outputs.can_run_notebook == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: notebook-html-report
@@ -374,6 +503,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Executed Notebook
+        if: needs.pre-check.outputs.can_run_notebook == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: executed-notebook
