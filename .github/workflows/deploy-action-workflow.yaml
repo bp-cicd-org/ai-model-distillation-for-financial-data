@@ -318,16 +318,17 @@ jobs:
           echo "Installing Notebook Runner Dependencies..."
           echo "=========================================="
           
-          pip install --upgrade pip
-          pip install nbclient nbformat jupyter ipykernel
+          # Install uv package manager
+          pip install --upgrade pip uv
           
-          # Install project dependencies for notebook execution
-          if [ -f "requirements.txt" ]; then
-            pip install -r requirements.txt
-          fi
+          # Use uv sync to install project dependencies (respects pyproject.toml and uv.lock)
+          uv sync
+          
+          # Install notebook runner dependencies
+          uv pip install nbclient nbformat jupyter ipykernel
           
           # Install ipykernel for the current Python
-          python -m ipykernel install --user --name python3 --display-name "Python 3"
+          uv run python -m ipykernel install --user --name python3 --display-name "Python 3"
           
           echo "[OK] Dependencies installed"
 
@@ -340,8 +341,8 @@ jobs:
           # Create output directory
           mkdir -p ${NOTEBOOK_OUTPUT_DIR}
           
-          # Execute notebook using notebook_runner_nbclient.py
-          python /tmp/notebook-runner-repo/utils/notebook_runner/notebook_runner_nbclient.py \
+          # Execute notebook using notebook_runner_nbclient.py with uv run
+          uv run python /tmp/notebook-runner-repo/utils/notebook_runner/notebook_runner_nbclient.py \
             -f ${NOTEBOOK_PATH} \
             --output-dir ${NOTEBOOK_OUTPUT_DIR} \
             --timeout 3600 \
