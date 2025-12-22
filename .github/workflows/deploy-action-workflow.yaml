@@ -263,7 +263,7 @@ jobs:
           echo "Checking GPU via Docker container (DinD mode)..."
           
           # Try to run nvidia-smi in a GPU container
-          GPU_INFO=$(docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv 2>&1) || {
+          GPU_INFO=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv 2>&1) || {
             echo "[WARNING] Could not access GPU via Docker."
             echo "[WARNING] Error: $GPU_INFO"
             echo "[WARNING] Notebook execution will be SKIPPED."
@@ -276,7 +276,7 @@ jobs:
           echo ""
           
           # Get GPU count
-          GPU_COUNT=$(docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l)
+          GPU_COUNT=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l)
           echo "Found $GPU_COUNT GPU(s), Required: $REQUIRED_GPUS"
           
           if [ "$GPU_COUNT" -lt "$REQUIRED_GPUS" ]; then
@@ -289,7 +289,7 @@ jobs:
           
           # Check GPU models (A100 80GB, H100, H200, RTX 6000, RTX 5880)
           VALID_GPUS=0
-          GPU_NAMES=$(docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null)
+          GPU_NAMES=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null)
           while IFS= read -r gpu; do
             echo "Checking GPU: $gpu"
             if [[ "$gpu" == *"A100"*"80GB"* ]] || [[ "$gpu" == *"A100"* ]] || [[ "$gpu" == *"H100"* ]] || [[ "$gpu" == *"H200"* ]] || [[ "$gpu" == *"6000"* ]] || [[ "$gpu" == *"5880"* ]] || [[ "$gpu" == *"L40"* ]] || [[ "$gpu" == *"A10"* ]]; then
@@ -311,7 +311,7 @@ jobs:
           echo "[OK] GPU model check passed"
           
           # Check GPU driver version
-          DRIVER_VERSION=$(docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
+          DRIVER_VERSION=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
           echo "GPU Driver version: $DRIVER_VERSION, Required: >= $REQUIRED_DRIVER_VERSION"
           
           if [[ "$(printf '%s\n' "$REQUIRED_DRIVER_VERSION" "$DRIVER_VERSION" | sort -V | head -n1)" != "$REQUIRED_DRIVER_VERSION" ]]; then
@@ -337,14 +337,14 @@ jobs:
           # In DinD environment, we verify GPU access works via Docker
           echo "Verifying NVIDIA Container Toolkit via Docker GPU access..."
           
-          if docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi > /dev/null 2>&1; then
+          if docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi > /dev/null 2>&1; then
             echo "[OK] NVIDIA Container Toolkit is working (GPU containers can access GPUs)"
           else
             echo "[WARNING] Could not run GPU container. NVIDIA Container Toolkit may not be configured correctly."
           fi
           
           # Try to get driver info from container
-          DRIVER_INFO=$(docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 || echo "unknown")
+          DRIVER_INFO=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 || echo "unknown")
           echo "Host GPU Driver: $DRIVER_INFO"
 
       - name: Check Kubernetes Tools
@@ -402,96 +402,164 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Clone Notebook Runner Repository
-        if: needs.pre-check.outputs.can_run_notebook == 'true'
+      - name: Prepare Work Directory
         run: |
           echo "=========================================="
-          echo "Cloning Notebook Runner Repository..."
+          echo "Preparing Work Directory for DinD..."
           echo "=========================================="
           
-          # Clone the GitHub repository containing notebook runner
-          # Use GH_TOKEN for authentication (works for both public and private repos)
-          git clone https://x-access-token:${GH_TOKEN}@github.com/bp-cicd-org/qa-tester.git /tmp/notebook-runner-repo
+          # Create directories for container output
+          mkdir -p ${NOTEBOOK_OUTPUT_DIR}
+          mkdir -p /tmp/notebook-runner-repo
           
-          if [ $? -eq 0 ]; then
-            echo "[OK] Successfully cloned notebook runner repository"
-            ls -la /tmp/notebook-runner-repo/utils/notebook_runner/
-          else
-            echo "[FAILED] Failed to clone notebook runner repository"
-            exit 1
+          # Create .env file for container
+          cat > deploy/.env << 'ENVEOF'
+          MONGO_USERNAME=${{ env.MONGO_USERNAME }}
+          MONGO_PASSWORD=${{ env.MONGO_PASSWORD }}
+          REDIS_PASSWORD=${{ env.REDIS_PASSWORD }}
+          NVIDIA_API_KEY=${{ env.NVIDIA_API_KEY }}
+          NGC_API_KEY=${{ env.NGC_API_KEY }}
+          LLM_JUDGE_API_KEY=${{ env.NVIDIA_API_KEY }}
+          EMB_API_KEY=${{ env.NVIDIA_API_KEY }}
+          HF_TOKEN=${{ env.HF_TOKEN }}
+          ES_COLLECTION_NAME=${{ env.ES_COLLECTION_NAME }}
+          TAG=${{ env.TAG }}
+          ENVEOF
+          
+          # Add MLflow profile if enabled
+          if [ "${{ inputs.enable_mlflow }}" = "true" ]; then
+            echo "COMPOSE_PROFILES=mlflow" >> deploy/.env
           fi
+          
+          echo "[OK] Work directory prepared"
 
-      - name: Install Notebook Runner Dependencies
-        if: needs.pre-check.outputs.can_run_notebook == 'true'
+      - name: Run All Operations in GPU Container
         run: |
           echo "=========================================="
-          echo "Installing Notebook Runner Dependencies..."
+          echo "Starting GPU Container for All Operations..."
           echo "=========================================="
           
-          # Install uv package manager
-          pip install --upgrade pip uv
+          CAN_RUN_NOTEBOOK="${{ needs.pre-check.outputs.can_run_notebook }}"
           
-          # Use uv sync to install project dependencies (respects pyproject.toml and uv.lock)
-          uv sync
-          
-          # Install notebook runner dependencies
-          uv pip install nbclient nbformat jupyter ipykernel
-          
-          # Install ipykernel for the current Python
-          uv run python -m ipykernel install --user --name python3 --display-name "Python 3"
-          
-          echo "[OK] Dependencies installed"
+          # Run all business logic inside a GPU-enabled container
+          docker run --rm \
+            --gpus all \
+            --network host \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v ${{ github.workspace }}:/workspace \
+            -v /tmp/notebook-runner-repo:/tmp/notebook-runner-repo \
+            -w /workspace \
+            -e NVIDIA_API_KEY="${NVIDIA_API_KEY}" \
+            -e NGC_API_KEY="${NGC_API_KEY}" \
+            -e GH_TOKEN="${GH_TOKEN}" \
+            -e MONGO_USERNAME="${MONGO_USERNAME}" \
+            -e MONGO_PASSWORD="${MONGO_PASSWORD}" \
+            -e REDIS_PASSWORD="${REDIS_PASSWORD}" \
+            -e HF_TOKEN="${HF_TOKEN}" \
+            -e ES_COLLECTION_NAME="${ES_COLLECTION_NAME}" \
+            -e TAG="${TAG}" \
+            -e NOTEBOOK_PATH="${NOTEBOOK_PATH}" \
+            -e NOTEBOOK_OUTPUT_DIR="${NOTEBOOK_OUTPUT_DIR}" \
+            -e CAN_RUN_NOTEBOOK="${CAN_RUN_NOTEBOOK}" \
+            nvidia/cuda:12.2.0-devel-ubuntu22.04 \
+            bash -c '
+              set -e
+              
+              echo "=========================================="
+              echo "Inside GPU Container - Starting Operations"
+              echo "=========================================="
+              
+              # Install system dependencies
+              apt-get update && apt-get install -y --no-install-recommends \
+                git curl docker.io docker-compose-plugin ca-certificates \
+                python3 python3-pip python3-venv
+              
+              # Create symlinks for python
+              ln -sf /usr/bin/python3 /usr/bin/python || true
+              ln -sf /usr/bin/pip3 /usr/bin/pip || true
+              
+              # Verify GPU access
+              echo ""
+              echo "=== GPU Status ==="
+              nvidia-smi
+              
+              # Install Python dependencies
+              echo ""
+              echo "=== Installing Python Dependencies ==="
+              pip install --upgrade pip uv --break-system-packages
+              
+              # Clone notebook runner if GPU requirements met
+              if [ "${CAN_RUN_NOTEBOOK}" = "true" ]; then
+                echo ""
+                echo "=== Cloning Notebook Runner Repository ==="
+                git clone https://x-access-token:${GH_TOKEN}@github.com/bp-cicd-org/qa-tester.git /tmp/notebook-runner-repo
+                
+                echo ""
+                echo "=== Installing Project Dependencies ==="
+                cd /workspace
+                uv sync
+                uv pip install nbclient nbformat jupyter ipykernel
+                uv run python -m ipykernel install --user --name python3 --display-name "Python 3"
+                
+                echo ""
+                echo "=== Executing Notebook ==="
+                mkdir -p ${NOTEBOOK_OUTPUT_DIR}
+                uv run python /tmp/notebook-runner-repo/utils/notebook_runner/notebook_runner_nbclient.py \
+                  -f ${NOTEBOOK_PATH} \
+                  --output-dir ${NOTEBOOK_OUTPUT_DIR} \
+                  --timeout 3600 \
+                  --skip-cells 9 \
+                  -e NVIDIA_API_KEY=${NVIDIA_API_KEY} \
+                  -e NGC_API_KEY=${NGC_API_KEY} \
+                  -e HF_TOKEN=${HF_TOKEN} \
+                  -e REDIS_PASSWORD=${REDIS_PASSWORD} \
+                  -e MONGO_USERNAME=${MONGO_USERNAME} \
+                  -e MONGO_PASSWORD=${MONGO_PASSWORD} \
+                  --skip-deps-check
+                
+                echo "[OK] Notebook executed successfully"
+                ls -la ${NOTEBOOK_OUTPUT_DIR}/
+              else
+                echo ""
+                echo "[WARNING] Notebook execution SKIPPED - GPU requirements not met"
+              fi
+              
+              echo ""
+              echo "=== Starting Docker Compose Services ==="
+              cd /workspace/deploy
+              
+              # Login to NVIDIA Container Registry
+              if [ -n "${NGC_API_KEY}" ]; then
+                echo "${NGC_API_KEY}" | docker login nvcr.io -u "\$oauthtoken" --password-stdin
+                echo "[OK] Logged in to NVIDIA Container Registry"
+              fi
+              
+              # Pull and start services
+              docker compose -f docker-compose.yaml pull --ignore-pull-failures || true
+              docker compose -f docker-compose.yaml up -d --build
+              
+              echo "[OK] Services started"
+              
+              # Wait for services to initialize
+              echo ""
+              echo "=== Waiting for Services to Initialize ==="
+              sleep 30
+              docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+              
+              echo ""
+              echo "=========================================="
+              echo "[OK] All Operations Completed in GPU Container"
+              echo "=========================================="
+            '
 
       - name: Skip Notebook Notification
         if: needs.pre-check.outputs.can_run_notebook != 'true'
         run: |
           echo "=========================================="
-          echo "[WARNING] Notebook Execution SKIPPED"
+          echo "[WARNING] Notebook Execution was SKIPPED"
           echo "=========================================="
-          echo ""
-          echo "GPU requirements not met. Skipping notebook execution."
-          echo "Proceeding with REST API deployment only."
-          echo ""
-
-      - name: Execute Notebook and Generate HTML
-        if: needs.pre-check.outputs.can_run_notebook == 'true'
-        run: |
-          echo "=========================================="
-          echo "Executing Notebook..."
-          echo "=========================================="
-          
-          # Create output directory
-          mkdir -p ${NOTEBOOK_OUTPUT_DIR}
-          
-          # Execute notebook using notebook_runner_nbclient.py with uv run
-          # --skip-cells 9: Skip the interactive input cell (getpass)
-          # All required environment variables are passed via -e flags
-          uv run python /tmp/notebook-runner-repo/utils/notebook_runner/notebook_runner_nbclient.py \
-            -f ${NOTEBOOK_PATH} \
-            --output-dir ${NOTEBOOK_OUTPUT_DIR} \
-            --timeout 3600 \
-            --skip-cells 9 \
-            -e NVIDIA_API_KEY=${NVIDIA_API_KEY} \
-            -e NGC_API_KEY=${NGC_API_KEY} \
-            -e HF_TOKEN=${HF_TOKEN} \
-            -e REDIS_PASSWORD=${REDIS_PASSWORD} \
-            -e MONGO_USERNAME=${MONGO_USERNAME} \
-            -e MONGO_PASSWORD=${MONGO_PASSWORD} \
-            --skip-deps-check
-          
-          if [ $? -eq 0 ]; then
-            echo "[OK] Notebook executed successfully"
-            echo "Generated files:"
-            ls -la ${NOTEBOOK_OUTPUT_DIR}/
-          else
-            echo "[FAILED] Notebook execution failed"
-            exit 1
-          fi
+          echo "GPU requirements not met."
+          echo "REST API deployment proceeded without notebook execution."
 
       - name: Upload Notebook HTML Report
         if: needs.pre-check.outputs.can_run_notebook == 'true'
@@ -500,6 +568,7 @@ jobs:
           name: notebook-html-report
           path: ${{ env.NOTEBOOK_OUTPUT_DIR }}/*.html
           retention-days: 30
+          if-no-files-found: warn
 
       - name: Upload Executed Notebook
         if: needs.pre-check.outputs.can_run_notebook == 'true'
@@ -508,103 +577,7 @@ jobs:
           name: executed-notebook
           path: ${{ env.NOTEBOOK_OUTPUT_DIR }}/*.ipynb
           retention-days: 30
-
-      - name: Create Environment File
-        run: |
-          echo "=========================================="
-          echo "Creating Environment Configuration..."
-          echo "=========================================="
-          
-          # Create .env file in deploy directory
-          cat > deploy/.env << EOF
-          # Database credentials
-          MONGO_USERNAME=${MONGO_USERNAME}
-          MONGO_PASSWORD=${MONGO_PASSWORD}
-          REDIS_PASSWORD=${REDIS_PASSWORD}
-          
-          # NVIDIA API Keys
-          NVIDIA_API_KEY=${NVIDIA_API_KEY}
-          NGC_API_KEY=${NGC_API_KEY}
-          LLM_JUDGE_API_KEY=${NVIDIA_API_KEY}
-          EMB_API_KEY=${NVIDIA_API_KEY}
-          
-          # Optional tokens
-          HF_TOKEN=${HF_TOKEN}
-          
-          # Configuration
-          ES_COLLECTION_NAME=${ES_COLLECTION_NAME}
-          TAG=${TAG}
-          EOF
-          
-          # Set MLflow profile if enabled
-          if [ "${{ inputs.enable_mlflow }}" = "true" ]; then
-            echo "COMPOSE_PROFILES=mlflow" >> deploy/.env
-            echo "[OK] MLflow profile enabled"
-          fi
-          
-          echo "[OK] Environment file created"
-
-      - name: Cleanup Previous Deployment
-        run: |
-          echo "=========================================="
-          echo "Cleaning up previous deployment..."
-          echo "=========================================="
-          
-          cd deploy
-          docker compose -f docker-compose.yaml down --volumes --remove-orphans 2>/dev/null || true
-          
-          # Wait for containers to stop
-          sleep 5
-          
-          echo "[OK] Cleanup complete"
-
-      - name: Pull Docker Images
-        run: |
-          echo "=========================================="
-          echo "Pulling Docker Images..."
-          echo "=========================================="
-          
-          cd deploy
-          
-          # Login to NVIDIA Container Registry if NGC_API_KEY is available
-          if [ -n "$NGC_API_KEY" ]; then
-            echo "$NGC_API_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin
-            echo "[OK] Logged in to NVIDIA Container Registry"
-          fi
-          
-          # Pull images
-          docker compose -f docker-compose.yaml pull --ignore-pull-failures || true
-          
-          echo "[OK] Docker images pulled"
-
-      - name: Start Services
-        id: start_services
-        run: |
-          echo "=========================================="
-          echo "Starting Services..."
-          echo "=========================================="
-          
-          cd deploy
-          
-          # Start all services
-          docker compose -f docker-compose.yaml up -d --build
-          
-          # Record start time
-          echo "start_time=$(date +%s)" >> $GITHUB_OUTPUT
-          
-          echo "[OK] Services started"
-
-      - name: Wait for Services to Initialize
-        run: |
-          echo "=========================================="
-          echo "Waiting for services to initialize..."
-          echo "=========================================="
-          
-          # Wait for initial startup
-          sleep 30
-          
-          # Show container status
-          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          if-no-files-found: warn
 
       - name: Verify Service Health
         id: health_check
