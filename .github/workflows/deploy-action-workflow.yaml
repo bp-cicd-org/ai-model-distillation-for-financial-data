@@ -639,7 +639,15 @@ jobs:
             done
             
             echo "[FAILED] $service_name failed to become healthy after $MAX_RETRIES attempts"
-            echo "[FAILED] Exiting immediately due to service failure"
+            echo ""
+            echo "=== Container Status ==="
+            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo ""
+            echo "=== ${service_name} Container Logs ==="
+            local container_name=$(echo "$service_name" | tr '[:upper:]' '[:lower:]')
+            docker logs $(docker ps -aqf "name=${container_name}" | head -1) 2>&1 | tail -100 || echo "Could not get logs"
+            echo ""
+            echo "[FAILED] Exiting due to ${service_name} failure"
             exit 1
           }
           
@@ -665,7 +673,41 @@ jobs:
           
           if [ "$API_OK" != "true" ]; then
             echo "[FAILED] API Server failed to respond after $MAX_RETRIES attempts"
-            echo "[FAILED] Exiting immediately due to service failure"
+            echo ""
+            echo "=========================================="
+            echo "DIAGNOSTIC INFORMATION"
+            echo "=========================================="
+            echo ""
+            echo "=== All Container Status ==="
+            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}\t{{.Image}}"
+            echo ""
+            echo "=== Container Resource Usage ==="
+            docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" 2>/dev/null || echo "Could not get stats"
+            echo ""
+            echo "=== API Container Logs (last 200 lines) ==="
+            docker logs $(docker ps -aqf "name=api" | head -1) 2>&1 | tail -200 || echo "Could not get API logs"
+            echo ""
+            echo "=== Celery Worker Logs (last 100 lines) ==="
+            docker logs $(docker ps -aqf "name=celery" | head -1) 2>&1 | tail -100 || echo "Could not get Celery logs"
+            echo ""
+            echo "=== Network Information ==="
+            docker network ls
+            echo ""
+            echo "=== Port Bindings ==="
+            docker ps --format "{{.Names}}: {{.Ports}}" 2>/dev/null || echo "Could not get port bindings"
+            echo ""
+            echo "=== Host Port Status ==="
+            ss -tuln | grep -E ":(8000|9200|27017|6379|5000)" || netstat -tuln 2>/dev/null | grep -E ":(8000|9200|27017|6379|5000)" || echo "Could not check ports"
+            echo ""
+            echo "=== Docker Compose Config Check ==="
+            cd deploy && docker compose config --services 2>/dev/null || echo "Could not verify compose config"
+            echo ""
+            echo "=== Recent Docker Events ==="
+            docker events --since="5m" --until="0s" 2>/dev/null | tail -50 || echo "Could not get docker events"
+            echo ""
+            echo "=========================================="
+            echo "[FAILED] Exiting due to API Server failure"
+            echo "=========================================="
             exit 1
           fi
           
@@ -685,7 +727,14 @@ jobs:
           
           if [ "$REDIS_OK" != "true" ]; then
             echo "[FAILED] Redis failed to respond after 5 attempts"
-            echo "[FAILED] Exiting immediately due to service failure"
+            echo ""
+            echo "=== Redis Container Logs ==="
+            docker logs $(docker ps -aqf "name=redis" | head -1) 2>&1 | tail -100 || echo "Could not get Redis logs"
+            echo ""
+            echo "=== Container Status ==="
+            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo ""
+            echo "[FAILED] Exiting due to Redis failure"
             exit 1
           fi
           
@@ -705,7 +754,14 @@ jobs:
           
           if [ "$MONGO_OK" != "true" ]; then
             echo "[FAILED] MongoDB failed to respond after 5 attempts"
-            echo "[FAILED] Exiting immediately due to service failure"
+            echo ""
+            echo "=== MongoDB Container Logs ==="
+            docker logs $(docker ps -aqf "name=mongodb" | head -1) 2>&1 | tail -100 || echo "Could not get MongoDB logs"
+            echo ""
+            echo "=== Container Status ==="
+            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo ""
+            echo "[FAILED] Exiting due to MongoDB failure"
             exit 1
           fi
           
