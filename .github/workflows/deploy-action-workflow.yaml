@@ -1,0 +1,646 @@
+# AI Model Distillation for Financial Data - REST API Deployment
+# This workflow deploys the Data Flywheel services using Docker Compose
+# and validates successful deployment via REST API health checks.
+
+name: Deploy Action Workflow Services
+
+on:
+  # Trigger on push to main/master branches
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    paths:
+      # Only trigger when relevant files change
+      - 'src/**'
+      - 'deploy/**'
+      - 'config/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/deploy-action-workflow.yaml'
+
+  # Trigger on pull requests to main/master branches
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+    paths:
+      - 'src/**'
+      - 'deploy/**'
+      - 'config/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/deploy-action-workflow.yaml'
+
+  # Manual trigger with options
+  workflow_dispatch:
+    inputs:
+      enable_mlflow:
+        description: 'Enable MLflow for experiment tracking'
+        required: false
+        default: 'false'
+        type: boolean
+      skip_cleanup:
+        description: 'Skip cleanup after deployment (keep services running)'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  # Required environment variables from secrets
+  NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  MONGO_USERNAME: ${{ secrets.MONGO_USERNAME || 'admin' }}
+  MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+  REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+  HF_TOKEN: ${{ secrets.HF_TOKEN }}
+  
+  # Optional configurations
+  ES_COLLECTION_NAME: flywheel
+  TAG: "0.3.0"
+
+jobs:
+  pre-check:
+    name: Pre-flight Checks
+    runs-on: arc-runner-set-oke-org-poc-2-gpu
+    outputs:
+      checks_passed: ${{ steps.final_check.outputs.passed }}
+    steps:
+      - name: Display Runner Information
+        run: |
+          echo "=========================================="
+          echo "Runner Information"
+          echo "=========================================="
+          echo "Runner Name: ${{ runner.name }}"
+          echo "Runner OS: ${{ runner.os }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "=========================================="
+
+      - name: Check Required Secrets
+        id: check_secrets
+        run: |
+          echo "=========================================="
+          echo "Checking Required Secrets..."
+          echo "=========================================="
+          
+          MISSING_SECRETS=""
+          
+          # Check NVIDIA_API_KEY
+          if [ -z "${{ secrets.NVIDIA_API_KEY }}" ]; then
+            echo "[FAILED] NVIDIA_API_KEY is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}NVIDIA_API_KEY "
+          else
+            echo "[OK] NVIDIA_API_KEY is set (${#NVIDIA_API_KEY} chars)"
+          fi
+          
+          # Check NGC_API_KEY
+          if [ -z "${{ secrets.NGC_API_KEY }}" ]; then
+            echo "[FAILED] NGC_API_KEY is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}NGC_API_KEY "
+          else
+            echo "[OK] NGC_API_KEY is set"
+          fi
+          
+          # Check MONGO_PASSWORD
+          if [ -z "${{ secrets.MONGO_PASSWORD }}" ]; then
+            echo "[FAILED] MONGO_PASSWORD is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}MONGO_PASSWORD "
+          else
+            echo "[OK] MONGO_PASSWORD is set"
+          fi
+          
+          # Check REDIS_PASSWORD
+          if [ -z "${{ secrets.REDIS_PASSWORD }}" ]; then
+            echo "[FAILED] REDIS_PASSWORD is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}REDIS_PASSWORD "
+          else
+            echo "[OK] REDIS_PASSWORD is set"
+          fi
+          
+          # Optional: HF_TOKEN
+          if [ -z "${{ secrets.HF_TOKEN }}" ]; then
+            echo "[WARNING] HF_TOKEN is not set (optional, needed for some features)"
+          else
+            echo "[OK] HF_TOKEN is set"
+          fi
+          
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo ""
+            echo "[FAILED] Missing required secrets: $MISSING_SECRETS"
+            echo ""
+            echo "Please configure the following secrets in your repository:"
+            echo "  Settings -> Secrets and variables -> Actions -> New repository secret"
+            exit 1
+          fi
+          
+          echo ""
+          echo "[OK] All required secrets are configured"
+
+      - name: Check Docker Installation
+        id: check_docker
+        run: |
+          echo "=========================================="
+          echo "Checking Docker Installation..."
+          echo "=========================================="
+          
+          if ! command -v docker &> /dev/null; then
+            echo "[FAILED] Docker is not installed"
+            exit 1
+          fi
+          
+          DOCKER_VERSION=$(docker --version)
+          echo "[OK] Docker installed: $DOCKER_VERSION"
+          
+          # Check Docker daemon is running
+          if ! docker info &> /dev/null; then
+            echo "[FAILED] Docker daemon is not running"
+            exit 1
+          fi
+          echo "[OK] Docker daemon is running"
+          
+          # Check Docker Compose
+          if ! docker compose version &> /dev/null; then
+            echo "[FAILED] Docker Compose v2 is not available"
+            exit 1
+          fi
+          
+          COMPOSE_VERSION=$(docker compose version --short)
+          echo "[OK] Docker Compose installed: $COMPOSE_VERSION"
+
+      - name: Check Git LFS Installation
+        id: check_git_lfs
+        run: |
+          echo "=========================================="
+          echo "Checking Git LFS..."
+          echo "=========================================="
+          
+          if ! command -v git-lfs &> /dev/null; then
+            echo "[WARNING] Git LFS not found, attempting to install..."
+            if command -v apt-get &> /dev/null; then
+              sudo apt-get update && sudo apt-get install -y git-lfs
+            elif command -v yum &> /dev/null; then
+              sudo yum install -y git-lfs
+            else
+              echo "[FAILED] Cannot install Git LFS automatically"
+              exit 1
+            fi
+          fi
+          
+          git lfs version
+          echo "[OK] Git LFS is available"
+
+      - name: Check Required Ports Availability
+        id: check_ports
+        run: |
+          echo "=========================================="
+          echo "Checking Port Availability..."
+          echo "=========================================="
+          
+          PORTS_IN_USE=""
+          
+          for port in 8000 9200 27017 6379 5000; do
+            if ss -tuln | grep -q ":${port} " 2>/dev/null || netstat -tuln 2>/dev/null | grep -q ":${port} "; then
+              echo "[WARNING] Port $port is in use"
+              PORTS_IN_USE="${PORTS_IN_USE}${port} "
+            else
+              echo "[OK] Port $port is available"
+            fi
+          done
+          
+          if [ -n "$PORTS_IN_USE" ]; then
+            echo ""
+            echo "[WARNING] Some ports are in use: $PORTS_IN_USE"
+            echo "   This may cause deployment issues. Consider stopping conflicting services."
+          fi
+
+      - name: Check Disk Space
+        id: check_disk
+        run: |
+          echo "=========================================="
+          echo "Checking Disk Space..."
+          echo "=========================================="
+          
+          # Get available disk space in GB
+          AVAILABLE_GB=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+          REQUIRED_GB=50
+          
+          echo "Available disk space: ${AVAILABLE_GB}GB"
+          echo "Required minimum: ${REQUIRED_GB}GB"
+          
+          if [ "$AVAILABLE_GB" -lt "$REQUIRED_GB" ]; then
+            echo "[FAILED] Insufficient disk space. Need at least ${REQUIRED_GB}GB, have ${AVAILABLE_GB}GB"
+            exit 1
+          fi
+          
+          echo "[OK] Sufficient disk space available"
+
+      - name: Validate NVIDIA API Key
+        id: validate_nvidia_api
+        run: |
+          echo "=========================================="
+          echo "Validating NVIDIA API Key..."
+          echo "=========================================="
+          
+          # Test NVIDIA API Key by making a simple API call
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $NVIDIA_API_KEY" \
+            -H "Content-Type: application/json" \
+            "https://integrate.api.nvidia.com/v1/models" 2>/dev/null || echo "000")
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "[OK] NVIDIA API Key is valid and working"
+          elif [ "$HTTP_STATUS" = "401" ] || [ "$HTTP_STATUS" = "403" ]; then
+            echo "[FAILED] NVIDIA API Key is invalid or expired (HTTP $HTTP_STATUS)"
+            exit 1
+          elif [ "$HTTP_STATUS" = "000" ]; then
+            echo "[WARNING] Could not reach NVIDIA API (network issue). Proceeding anyway..."
+          else
+            echo "[WARNING] Unexpected response from NVIDIA API (HTTP $HTTP_STATUS). Proceeding anyway..."
+          fi
+
+      - name: Check GPU Availability
+        id: check_gpu
+        run: |
+          echo "=========================================="
+          echo "Checking GPU Availability..."
+          echo "=========================================="
+          
+          if command -v nvidia-smi &> /dev/null; then
+            nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
+            GPU_COUNT=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+            echo ""
+            echo "[OK] Found $GPU_COUNT GPU(s)"
+            
+            if [ "$GPU_COUNT" -lt 2 ]; then
+              echo "[WARNING] Recommended minimum is 2 GPUs for full functionality"
+            fi
+          else
+            echo "[WARNING] nvidia-smi not found. GPU may not be available."
+            echo "   Some features may not work without GPU."
+          fi
+
+      - name: Final Pre-check Summary
+        id: final_check
+        run: |
+          echo "=========================================="
+          echo "Pre-flight Checks Complete"
+          echo "=========================================="
+          echo ""
+          echo "All critical checks passed. Ready for deployment."
+          echo "passed=true" >> $GITHUB_OUTPUT
+
+  deploy:
+    name: Deploy Services
+    runs-on: arc-runner-set-oke-org-poc-2-gpu
+    needs: pre-check
+    if: needs.pre-check.outputs.checks_passed == 'true'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Setup Git LFS
+        run: |
+          git lfs install
+          git lfs pull
+
+      - name: Create Environment File
+        run: |
+          echo "=========================================="
+          echo "Creating Environment Configuration..."
+          echo "=========================================="
+          
+          # Create .env file in deploy directory
+          cat > deploy/.env << EOF
+          # Database credentials
+          MONGO_USERNAME=${MONGO_USERNAME}
+          MONGO_PASSWORD=${MONGO_PASSWORD}
+          REDIS_PASSWORD=${REDIS_PASSWORD}
+          
+          # NVIDIA API Keys
+          NVIDIA_API_KEY=${NVIDIA_API_KEY}
+          NGC_API_KEY=${NGC_API_KEY}
+          LLM_JUDGE_API_KEY=${NVIDIA_API_KEY}
+          EMB_API_KEY=${NVIDIA_API_KEY}
+          
+          # Optional tokens
+          HF_TOKEN=${HF_TOKEN}
+          
+          # Configuration
+          ES_COLLECTION_NAME=${ES_COLLECTION_NAME}
+          TAG=${TAG}
+          EOF
+          
+          # Set MLflow profile if enabled
+          if [ "${{ inputs.enable_mlflow }}" = "true" ]; then
+            echo "COMPOSE_PROFILES=mlflow" >> deploy/.env
+            echo "[OK] MLflow profile enabled"
+          fi
+          
+          echo "[OK] Environment file created"
+
+      - name: Cleanup Previous Deployment
+        run: |
+          echo "=========================================="
+          echo "Cleaning up previous deployment..."
+          echo "=========================================="
+          
+          cd deploy
+          docker compose -f docker-compose.yaml down --volumes --remove-orphans 2>/dev/null || true
+          
+          # Wait for containers to stop
+          sleep 5
+          
+          echo "[OK] Cleanup complete"
+
+      - name: Pull Docker Images
+        run: |
+          echo "=========================================="
+          echo "Pulling Docker Images..."
+          echo "=========================================="
+          
+          cd deploy
+          
+          # Login to NVIDIA Container Registry if NGC_API_KEY is available
+          if [ -n "$NGC_API_KEY" ]; then
+            echo "$NGC_API_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+            echo "[OK] Logged in to NVIDIA Container Registry"
+          fi
+          
+          # Pull images
+          docker compose -f docker-compose.yaml pull --ignore-pull-failures || true
+          
+          echo "[OK] Docker images pulled"
+
+      - name: Start Services
+        id: start_services
+        run: |
+          echo "=========================================="
+          echo "Starting Services..."
+          echo "=========================================="
+          
+          cd deploy
+          
+          # Start all services
+          docker compose -f docker-compose.yaml up -d --build
+          
+          # Record start time
+          echo "start_time=$(date +%s)" >> $GITHUB_OUTPUT
+          
+          echo "[OK] Services started"
+
+      - name: Wait for Services to Initialize
+        run: |
+          echo "=========================================="
+          echo "Waiting for services to initialize..."
+          echo "=========================================="
+          
+          # Wait for initial startup
+          sleep 30
+          
+          # Show container status
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+      - name: Verify Service Health
+        id: health_check
+        run: |
+          echo "=========================================="
+          echo "Verifying Service Health..."
+          echo "=========================================="
+          
+          MAX_RETRIES=30
+          RETRY_INTERVAL=10
+          
+          # Function to check service health
+          check_service() {
+            local service_name=$1
+            local url=$2
+            local expected_status=${3:-200}
+            
+            for i in $(seq 1 $MAX_RETRIES); do
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+              
+              if [ "$HTTP_STATUS" = "$expected_status" ]; then
+                echo "[OK] $service_name is healthy (HTTP $HTTP_STATUS)"
+                return 0
+              fi
+              
+              echo "[WAIT] Waiting for $service_name... (attempt $i/$MAX_RETRIES, status: $HTTP_STATUS)"
+              sleep $RETRY_INTERVAL
+            done
+            
+            echo "[FAILED] $service_name failed to become healthy"
+            return 1
+          }
+          
+          echo ""
+          echo "--- Checking Elasticsearch ---"
+          check_service "Elasticsearch" "http://localhost:9200/_cluster/health"
+          ES_STATUS=$?
+          
+          echo ""
+          echo "--- Checking API Server ---"
+          # API might return different status codes, check for any response
+          for i in $(seq 1 $MAX_RETRIES); do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/api/jobs" 2>/dev/null || echo "000")
+            
+            if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "401" ] || [ "$HTTP_STATUS" = "404" ]; then
+              echo "[OK] API Server is responding (HTTP $HTTP_STATUS)"
+              API_STATUS=0
+              break
+            fi
+            
+            echo "[WAIT] Waiting for API Server... (attempt $i/$MAX_RETRIES, status: $HTTP_STATUS)"
+            sleep $RETRY_INTERVAL
+          done
+          
+          if [ "${API_STATUS:-1}" != "0" ]; then
+            echo "[FAILED] API Server failed to respond"
+            API_STATUS=1
+          fi
+          
+          echo ""
+          echo "--- Checking Redis ---"
+          # Check Redis by connecting
+          for i in $(seq 1 5); do
+            if docker exec $(docker ps -qf "name=redis" | head -1) redis-cli -a "$REDIS_PASSWORD" ping 2>/dev/null | grep -q "PONG"; then
+              echo "[OK] Redis is healthy"
+              REDIS_STATUS=0
+              break
+            fi
+            echo "[WAIT] Waiting for Redis... (attempt $i/5)"
+            sleep 5
+          done
+          REDIS_STATUS=${REDIS_STATUS:-1}
+          
+          echo ""
+          echo "--- Checking MongoDB ---"
+          # Check MongoDB
+          for i in $(seq 1 5); do
+            if docker exec $(docker ps -qf "name=mongodb" | head -1) mongosh --eval "db.runCommand('ping').ok" --quiet -u "$MONGO_USERNAME" -p "$MONGO_PASSWORD" 2>/dev/null | grep -q "1"; then
+              echo "[OK] MongoDB is healthy"
+              MONGO_STATUS=0
+              break
+            fi
+            echo "[WAIT] Waiting for MongoDB... (attempt $i/5)"
+            sleep 5
+          done
+          MONGO_STATUS=${MONGO_STATUS:-1}
+          
+          echo ""
+          echo "=========================================="
+          echo "Health Check Summary"
+          echo "=========================================="
+          
+          FAILED=0
+          [ "${ES_STATUS:-1}" != "0" ] && FAILED=1 && echo "[FAILED] Elasticsearch: FAILED"
+          [ "${ES_STATUS:-1}" = "0" ] && echo "[OK] Elasticsearch: OK"
+          
+          [ "${API_STATUS:-1}" != "0" ] && FAILED=1 && echo "[FAILED] API Server: FAILED"
+          [ "${API_STATUS:-1}" = "0" ] && echo "[OK] API Server: OK"
+          
+          [ "${REDIS_STATUS:-1}" != "0" ] && FAILED=1 && echo "[FAILED] Redis: FAILED"
+          [ "${REDIS_STATUS:-1}" = "0" ] && echo "[OK] Redis: OK"
+          
+          [ "${MONGO_STATUS:-1}" != "0" ] && FAILED=1 && echo "[FAILED] MongoDB: FAILED"
+          [ "${MONGO_STATUS:-1}" = "0" ] && echo "[OK] MongoDB: OK"
+          
+          if [ "$FAILED" = "1" ]; then
+            echo ""
+            echo "[FAILED] Some services failed health checks"
+            exit 1
+          fi
+          
+          echo ""
+          echo "[OK] All services are healthy!"
+
+      - name: Verify API Endpoints
+        id: verify_api
+        run: |
+          echo "=========================================="
+          echo "Verifying API Endpoints..."
+          echo "=========================================="
+          
+          # Test GET /api/jobs endpoint
+          echo ""
+          echo "--- Testing GET /api/jobs ---"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "http://localhost:8000/api/jobs")
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS")
+          
+          echo "Status: $HTTP_STATUS"
+          echo "Response: $BODY"
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "[OK] GET /api/jobs endpoint is working"
+          else
+            echo "[FAILED] GET /api/jobs endpoint failed"
+            exit 1
+          fi
+          
+          # Test API docs endpoint
+          echo ""
+          echo "--- Testing API Documentation ---"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/docs")
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "[OK] API Documentation is accessible at http://localhost:8000/docs"
+          else
+            echo "[WARNING] API Documentation returned HTTP $HTTP_STATUS"
+          fi
+          
+          # Test OpenAPI schema
+          echo ""
+          echo "--- Testing OpenAPI Schema ---"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/openapi.json")
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "[OK] OpenAPI schema is accessible"
+          else
+            echo "[WARNING] OpenAPI schema returned HTTP $HTTP_STATUS"
+          fi
+
+      - name: Display Deployment Summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "Deployment Summary"
+          echo "=========================================="
+          echo ""
+          
+          echo "Container Status:"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | head -20
+          
+          echo ""
+          echo "Service Endpoints:"
+          echo "  - API Server: http://localhost:8000"
+          echo "  - API Documentation: http://localhost:8000/docs"
+          echo "  - Elasticsearch: http://localhost:9200"
+          echo "  - MongoDB: localhost:27017"
+          echo "  - Redis: localhost:6379"
+          
+          if [ "${{ inputs.enable_mlflow }}" = "true" ]; then
+            echo "  - MLflow: http://localhost:5000"
+          fi
+          
+          echo ""
+          echo "Quick Commands:"
+          echo "  - Check logs: docker compose -f deploy/docker-compose.yaml logs -f"
+          echo "  - Stop services: docker compose -f deploy/docker-compose.yaml down"
+          echo "  - List jobs: curl http://localhost:8000/api/jobs"
+          echo ""
+          echo "=========================================="
+          echo "Deployment Complete!"
+          echo "=========================================="
+
+      - name: Collect Logs on Failure
+        if: failure()
+        run: |
+          echo "=========================================="
+          echo "Collecting Logs for Debugging..."
+          echo "=========================================="
+          
+          echo ""
+          echo "--- Container Status ---"
+          docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          
+          echo ""
+          echo "--- API Container Logs ---"
+          docker compose -f deploy/docker-compose.yaml logs api --tail=100 2>/dev/null || echo "No API logs available"
+          
+          echo ""
+          echo "--- Celery Worker Logs ---"
+          docker compose -f deploy/docker-compose.yaml logs celery_worker --tail=50 2>/dev/null || echo "No Celery worker logs available"
+          
+          echo ""
+          echo "--- Elasticsearch Logs ---"
+          docker compose -f deploy/docker-compose.yaml logs elasticsearch --tail=50 2>/dev/null || echo "No Elasticsearch logs available"
+          
+          echo ""
+          echo "--- MongoDB Logs ---"
+          docker compose -f deploy/docker-compose.yaml logs mongodb --tail=50 2>/dev/null || echo "No MongoDB logs available"
+          
+          echo ""
+          echo "--- Redis Logs ---"
+          docker compose -f deploy/docker-compose.yaml logs redis --tail=50 2>/dev/null || echo "No Redis logs available"
+
+      - name: Cleanup (Optional)
+        if: inputs.skip_cleanup != 'true' && always()
+        run: |
+          echo "=========================================="
+          echo "Cleaning up deployment..."
+          echo "=========================================="
+          
+          cd deploy
+          docker compose -f docker-compose.yaml down --volumes --remove-orphans
+          
+          echo "[OK] Cleanup complete"
