@@ -471,21 +471,50 @@ jobs:
               
               # Install system dependencies
               apt-get update && apt-get install -y --no-install-recommends \
-                git curl docker.io ca-certificates \
-                python3 python3-pip python3-venv
+                git curl docker.io ca-certificates sudo \
+                python3 python3-pip python3-venv jq conntrack
               
               # Install docker-compose v2 binary
+              echo "Installing docker-compose..."
               mkdir -p /usr/local/lib/docker/cli-plugins
               curl -SL https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-linux-x86_64 \
                 -o /usr/local/lib/docker/cli-plugins/docker-compose
               chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-              
-              # Verify docker-compose installation
               docker compose version
+              
+              # Install kubectl
+              echo "Installing kubectl..."
+              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              chmod +x kubectl && mv kubectl /usr/local/bin/
+              kubectl version --client || true
+              
+              # Install minikube
+              echo "Installing minikube..."
+              curl -LO https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64
+              chmod +x minikube-linux-amd64 && mv minikube-linux-amd64 /usr/local/bin/minikube
+              minikube version
+              
+              # Install helm
+              echo "Installing helm..."
+              curl -fsSL https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz | tar -xz
+              mv linux-amd64/helm /usr/local/bin/helm && rm -rf linux-amd64
+              helm version
+              
+              # Install yq
+              echo "Installing yq..."
+              curl -L https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq
+              chmod +x /usr/local/bin/yq
+              yq --version
+              
+              # Install huggingface-cli
+              echo "Installing huggingface-cli..."
+              pip3 install huggingface_hub
               
               # Create symlinks for python
               ln -sf /usr/bin/python3 /usr/bin/python || true
               ln -sf /usr/bin/pip3 /usr/bin/pip || true
+              
+              echo "[OK] All Kubernetes tools installed"
               
               # Verify GPU access
               echo ""
