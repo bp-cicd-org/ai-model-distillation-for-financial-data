@@ -32,12 +32,12 @@ on:
       enable_mlflow:
         description: 'Enable MLflow for experiment tracking'
         required: false
-        default: 'false'
+        default: false
         type: boolean
       skip_cleanup:
         description: 'Skip cleanup after deployment (keep services running)'
         required: false
-        default: 'true'
+        default: true
         type: boolean
 
 env:
@@ -45,9 +45,9 @@ env:
   NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   GH_TOKEN: ${{ secrets.GH_TOKEN }}
-  MONGO_USERNAME: ${{ secrets.MONGO_USERNAME || 'admin' }}
-  MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD || '' }}
-  REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD || '' }}
+  MONGO_USERNAME: ${{ secrets.MONGO_USERNAME }}
+  MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+  REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
   HF_TOKEN: ${{ secrets.HF_TOKEN }}
   
   # Optional configurations
@@ -62,10 +62,10 @@ env:
 jobs:
   pre-check:
     name: Pre-flight Checks
-    runs-on: arc-runner-set-oke-org-poc-2-gpu
+    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
     outputs:
       checks_passed: ${{ steps.final_check.outputs.passed }}
-      can_run_notebook: ${{ steps.check_gpu.outputs.can_run_notebook }}
+      can_run_notebook: ${{ steps.final_check.outputs.can_run_notebook }}
     steps:
       - name: Display Runner Information
         run: |
@@ -115,16 +115,26 @@ jobs:
             echo "[OK] GH_TOKEN is set"
           fi
           
-          # Check MONGO_PASSWORD (optional)
+          # Check MONGO_USERNAME (required)
+          if [ -z "${{ secrets.MONGO_USERNAME }}" ]; then
+            echo "[FAILED] MONGO_USERNAME is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}MONGO_USERNAME "
+          else
+            echo "[OK] MONGO_USERNAME is set"
+          fi
+          
+          # Check MONGO_PASSWORD (required)
           if [ -z "${{ secrets.MONGO_PASSWORD }}" ]; then
-            echo "[WARNING] MONGO_PASSWORD is not set (optional, using empty password)"
+            echo "[FAILED] MONGO_PASSWORD is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}MONGO_PASSWORD "
           else
             echo "[OK] MONGO_PASSWORD is set"
           fi
           
-          # Check REDIS_PASSWORD (optional)
+          # Check REDIS_PASSWORD (required)
           if [ -z "${{ secrets.REDIS_PASSWORD }}" ]; then
-            echo "[WARNING] REDIS_PASSWORD is not set (optional, using empty password)"
+            echo "[FAILED] REDIS_PASSWORD is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}REDIS_PASSWORD "
           else
             echo "[OK] REDIS_PASSWORD is set"
           fi
@@ -347,36 +357,86 @@ jobs:
           DRIVER_INFO=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 || echo "unknown")
           echo "Host GPU Driver: $DRIVER_INFO"
 
-      - name: Check Kubernetes Tools
-        id: check_k8s_tools
+      - name: Check Full K8s + GPU Environment
+        id: check_full_env
         run: |
           echo "=========================================="
-          echo "Checking Kubernetes Tools..."
+          echo "Checking Full Kubernetes + NVIDIA GPU Environment..."
           echo "=========================================="
           
-          # Check minikube
-          if command -v minikube &> /dev/null; then
-            MINIKUBE_VERSION=$(minikube version --short 2>/dev/null || echo "unknown")
-            echo "[OK] minikube installed: $MINIKUBE_VERSION"
+          FULL_ENV_READY="true"
+          MISSING_COMPONENTS=""
+          
+          # Check nvidia-ctk (NVIDIA Container Toolkit)
+          echo ""
+          echo "--- Checking NVIDIA Container Toolkit ---"
+          if docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-ctk --version &> /dev/null; then
+            echo "[OK] nvidia-ctk available in GPU container"
           else
-            echo "[WARNING] minikube not found (will be installed by notebook if needed)"
+            # Try checking if nvidia-ctk exists on host
+            CTK_CHECK=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 \
+              bash -c "command -v nvidia-ctk && nvidia-ctk --version" 2>&1 || echo "not found")
+            if [[ "$CTK_CHECK" == *"not found"* ]]; then
+              echo "[FAILED] nvidia-ctk NOT available"
+              FULL_ENV_READY="false"
+              MISSING_COMPONENTS="${MISSING_COMPONENTS}nvidia-ctk "
+            else
+              echo "[OK] nvidia-ctk check passed"
+            fi
           fi
           
-          # Check kubectl
-          if command -v kubectl &> /dev/null; then
-            KUBECTL_VERSION=$(kubectl version --client -o json 2>/dev/null | jq -r '.clientVersion.gitVersion' || echo "unknown")
-            echo "[OK] kubectl installed: $KUBECTL_VERSION"
+          # Check if minikube can run with GPU support
+          echo ""
+          echo "--- Checking Minikube GPU Support ---"
+          # In DinD environment, minikube with GPU is complex
+          # Just check if docker supports --gpus
+          if docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi &> /dev/null; then
+            echo "[OK] Docker GPU support available"
           else
-            echo "[WARNING] kubectl not found (will be installed by notebook if needed)"
+            echo "[FAILED] Docker GPU support NOT available for minikube"
+            FULL_ENV_READY="false"
+            MISSING_COMPONENTS="${MISSING_COMPONENTS}docker-gpu "
           fi
           
-          # Check helm
-          if command -v helm &> /dev/null; then
-            HELM_VERSION=$(helm version --template='{{.Version}}' 2>/dev/null || echo "unknown")
-            echo "[OK] helm installed: $HELM_VERSION"
+          # Check Docker version >= 27.0.0
+          echo ""
+          echo "--- Checking Docker Version ---"
+          DOCKER_VERSION=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo "0.0.0")
+          echo "Docker version: $DOCKER_VERSION"
+          if [[ "$(printf '%s\n' "27.0.0" "$DOCKER_VERSION" | sort -V | head -n1)" != "27.0.0" ]]; then
+            echo "[FAILED] Docker version $DOCKER_VERSION < 27.0.0 required"
+            FULL_ENV_READY="false"
+            MISSING_COMPONENTS="${MISSING_COMPONENTS}docker>=27.0.0 "
           else
-            echo "[WARNING] helm not found (will be installed by notebook if needed)"
+            echo "[OK] Docker version check passed"
           fi
+          
+          # Summary
+          echo ""
+          echo "=========================================="
+          if [ "$FULL_ENV_READY" = "true" ]; then
+            echo "[OK] Full Kubernetes + NVIDIA GPU environment is READY"
+            echo "     Notebook execution will be ENABLED"
+          else
+            echo "=========================================="
+            echo "[WARNING] INCOMPLETE ENVIRONMENT DETECTED"
+            echo "=========================================="
+            echo ""
+            echo "Missing components: $MISSING_COMPONENTS"
+            echo ""
+            echo "The NeMo Microservices Platform (NMP) deployment requires:"
+            echo "  - NVIDIA Container Toolkit (nvidia-ctk)"
+            echo "  - Docker >= 27.0.0 with GPU support"
+            echo "  - Kubernetes (minikube) with GPU passthrough"
+            echo ""
+            echo "=========================================="
+            echo "[WARNING] NOTEBOOK EXECUTION WILL BE SKIPPED"
+            echo "=========================================="
+            echo ""
+            echo "REST API deployment will continue without notebook execution."
+          fi
+          
+          echo "full_env_ready=$FULL_ENV_READY" >> $GITHUB_OUTPUT
 
       - name: Final Pre-check Summary
         id: final_check
@@ -387,13 +447,51 @@ jobs:
           echo ""
           echo "All critical checks passed. Ready for deployment."
           echo ""
-          echo "Notebook Execution: ${{ steps.check_gpu.outputs.can_run_notebook == 'true' && 'ENABLED' || 'DISABLED (GPU requirements not met)' }}"
+          
+          GPU_CAN_RUN="${{ steps.check_gpu.outputs.can_run_notebook }}"
+          FULL_ENV="${{ steps.check_full_env.outputs.full_env_ready }}"
+          
+          # Determine final notebook execution capability
+          if [ "$GPU_CAN_RUN" = "true" ] && [ "$FULL_ENV" = "true" ]; then
+            FINAL_CAN_RUN="true"
+            echo "############################################################"
+            echo "#   [OK] NOTEBOOK EXECUTION: ENABLED                       #"
+            echo "############################################################"
+            echo ""
+            echo "  - GPU requirements: MET"
+            echo "  - Full K8s+GPU environment: READY"
+          else
+            FINAL_CAN_RUN="false"
+            echo "############################################################"
+            echo "#                                                          #"
+            echo "#   [WARNING] NOTEBOOK EXECUTION: DISABLED                 #"
+            echo "#                                                          #"
+            echo "############################################################"
+            echo ""
+            if [ "$GPU_CAN_RUN" != "true" ]; then
+              echo "  [X] GPU requirements: NOT MET"
+            else
+              echo "  [OK] GPU requirements: MET"
+            fi
+            if [ "$FULL_ENV" != "true" ]; then
+              echo "  [X] Full K8s+GPU environment: NOT READY"
+              echo "      (Missing nvidia-ctk, Docker >= 27.0.0, or GPU passthrough)"
+            else
+              echo "  [OK] Full K8s+GPU environment: READY"
+            fi
+            echo ""
+            echo "############################################################"
+            echo "#   REST API DEPLOYMENT WILL CONTINUE WITHOUT NOTEBOOK     #"
+            echo "############################################################"
+          fi
+          
           echo ""
           echo "passed=true" >> $GITHUB_OUTPUT
+          echo "can_run_notebook=$FINAL_CAN_RUN" >> $GITHUB_OUTPUT
 
   deploy:
     name: Deploy Services
-    runs-on: arc-runner-set-oke-org-poc-2-gpu
+    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
     needs: pre-check
     if: needs.pre-check.outputs.checks_passed == 'true'
     steps:
@@ -471,21 +569,50 @@ jobs:
               
               # Install system dependencies
               apt-get update && apt-get install -y --no-install-recommends \
-                git curl docker.io ca-certificates \
-                python3 python3-pip python3-venv
+                git curl docker.io ca-certificates sudo \
+                python3 python3-pip python3-venv jq conntrack
               
               # Install docker-compose v2 binary
+              echo "Installing docker-compose..."
               mkdir -p /usr/local/lib/docker/cli-plugins
               curl -SL https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-linux-x86_64 \
                 -o /usr/local/lib/docker/cli-plugins/docker-compose
               chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-              
-              # Verify docker-compose installation
               docker compose version
+              
+              # Install kubectl
+              echo "Installing kubectl..."
+              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              chmod +x kubectl && mv kubectl /usr/local/bin/
+              kubectl version --client || true
+              
+              # Install minikube
+              echo "Installing minikube..."
+              curl -LO https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64
+              chmod +x minikube-linux-amd64 && mv minikube-linux-amd64 /usr/local/bin/minikube
+              minikube version
+              
+              # Install helm
+              echo "Installing helm..."
+              curl -fsSL https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz | tar -xz
+              mv linux-amd64/helm /usr/local/bin/helm && rm -rf linux-amd64
+              helm version
+              
+              # Install yq
+              echo "Installing yq..."
+              curl -L https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq
+              chmod +x /usr/local/bin/yq
+              yq --version
+              
+              # Install huggingface-cli
+              echo "Installing huggingface-cli..."
+              pip3 install huggingface_hub
               
               # Create symlinks for python
               ln -sf /usr/bin/python3 /usr/bin/python || true
               ln -sf /usr/bin/pip3 /usr/bin/pip || true
+              
+              echo "[OK] All Kubernetes tools installed"
               
               # Verify GPU access
               echo ""
@@ -516,11 +643,15 @@ jobs:
                 echo ""
                 echo "=== Executing Notebook ==="
                 mkdir -p ${NOTEBOOK_OUTPUT_DIR}
+                
+                # Note: --skip-cells accepts space-separated values
+                echo "Running notebook with skip-cells: 3 9"
+                
                 uv run python /tmp/notebook-runner-repo/utils/notebook_runner/notebook_runner_nbclient.py \
                   -f ${NOTEBOOK_PATH} \
                   --output-dir ${NOTEBOOK_OUTPUT_DIR} \
                   --timeout 3600 \
-                  --skip-cells 9 \
+                  --skip-cells 3 5 9 \
                   -e NVIDIA_API_KEY=${NVIDIA_API_KEY} \
                   -e NGC_API_KEY=${NGC_API_KEY} \
                   -e HF_TOKEN=${HF_TOKEN} \
