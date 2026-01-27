@@ -2,43 +2,43 @@
 # AI Model Distillation for Financial Data - CI/CD Pipeline
 # =============================================================================
 #
-# 部署方式说明 (Deployment Method):
-# ---------------------------------
-# 本项目使用 Docker Compose 脚本方式部署，而非 Notebook 部署。
-# Notebook (notebooks/ai-model-distillation-financial-data.ipynb) 用于交互式
-# 运行和监控 jobs，而非用于部署服务本身。
+# Deployment Method:
+# ------------------
+# This project uses Docker Compose script deployment, NOT Notebook deployment.
+# The Notebook (notebooks/ai-model-distillation-financial-data.ipynb) is used
+# for interactive job execution and monitoring, not for deploying services.
 #
-# 部署命令:
+# Deployment command:
 #   docker compose -f ./deploy/docker-compose.yaml up -d --build
 #
 # =============================================================================
-# 硬件资源需求 (Hardware Requirements):
+# Hardware Requirements:
 # =============================================================================
-# | 资源类型       | 最低要求                                    |
+# | Resource Type  | Minimum Requirement                         |
 # |----------------|---------------------------------------------|
-# | GPU            | 2× NVIDIA A100/H100/H200/B200 GPUs          |
-# | 磁盘空间       | 至少 200 GB                                 |
-# | 内存           | 建议 64 GB+                                 |
-# | GPU 驱动版本   | >= 560.35.03                                |
+# | GPU            | 2x NVIDIA A100/H100/H200/B200 GPUs          |
+# | Disk Space     | At least 200 GB                             |
+# | Memory         | Recommended 64 GB+                          |
+# | GPU Driver     | >= 560.35.03                                |
 #
 # =============================================================================
-# 服务端口 (Service Ports):
+# Service Ports:
 # =============================================================================
-# | 服务           | 端口  | 说明                                    |
+# | Service        | Port  | Description                             |
 # |----------------|-------|-----------------------------------------|
-# | API Server     | 8000  | FastAPI 主服务                          |
-# | Elasticsearch  | 9200  | 日志存储                                |
-# | MongoDB        | 27017 | 数据库                                  |
+# | API Server     | 8000  | FastAPI main service                    |
+# | Elasticsearch  | 9200  | Log storage                             |
+# | MongoDB        | 27017 | Database                                |
 # | Redis          | 6379  | Celery broker                           |
-# | MLflow         | 5000  | 实验追踪 (可选)                         |
+# | MLflow         | 5000  | Experiment tracking (optional)          |
 #
 # =============================================================================
-# pytest 测试信息 (Test Information):
+# pytest Test Information:
 # =============================================================================
-# 测试镜像: nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:latest
-# 测试文件: blueprint-github-test/testcases/dfw/test_dfw_api.py
+# Test Image: nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:latest
+# Test File: blueprint-github-test/testcases/dfw/test_dfw_api.py
 # pytest marker: dfw
-# API URL 参数: --dfw-api-url http://localhost:8000
+# API URL parameter: --dfw-api-url http://localhost:8000
 #
 # =============================================================================
 
@@ -108,7 +108,8 @@ jobs:
   # ===========================================================================
   preflight:
     name: Pre-flight Checks
-    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    runs-on: arc-runner-set-oke-org-poc-4-gpu
+    # runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
     outputs:
       checks_passed: ${{ steps.final_check.outputs.passed }}
     steps:
@@ -358,7 +359,8 @@ jobs:
   # ===========================================================================
   deploy-and-test:
     name: Deploy and Test
-    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    runs-on: arc-runner-set-oke-org-poc-4-gpu
+    # runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
     needs: preflight
     if: needs.preflight.outputs.checks_passed == 'true'
     steps:
