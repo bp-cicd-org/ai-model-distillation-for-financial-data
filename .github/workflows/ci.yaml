@@ -41,6 +41,20 @@
 # API URL parameter: --dfw-api-url http://localhost:8000
 #
 # =============================================================================
+# Required Secrets:
+# =============================================================================
+# | Secret           | Required | Description                              |
+# |------------------|----------|------------------------------------------|
+# | NVIDIA_API_KEY   | Yes      | NVIDIA API Key for hosted NIM services  |
+# | NGC_API_KEY      | Yes      | NGC API Key for container registry      |
+# | MONGO_USERNAME   | Yes      | MongoDB root username                   |
+# | MONGO_PASSWORD   | Yes      | MongoDB root password                   |
+# | REDIS_PASSWORD   | Yes      | Redis password                          |
+# | HF_TOKEN         | No       | Huggingface token (optional)            |
+# | SMTP_USERNAME    | No       | Gmail for email notifications           |
+# | SMTP_PASSWORD    | No       | Gmail app-specific password for SMTP    |
+#
+# =============================================================================
 
 name: CI - Data Flywheel
 
@@ -100,7 +114,7 @@ env:
   # Test configuration
   TEST_IMAGE: nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:latest
   DFW_API_URL: http://localhost:8000
-  ENABLE_EMAIL_NOTIFICATION: false
+  ENABLE_EMAIL_NOTIFICATION: true
 
 jobs:
   # ===========================================================================
@@ -850,3 +864,49 @@ jobs:
           echo ""
           echo "--- Celery Worker Logs ---"
           docker compose -f deploy/docker-compose.yaml logs celery_worker --tail=50 2>/dev/null || echo "No Celery logs available"
+
+      # =========================================================================
+      # Email Notification
+      # =========================================================================
+      # Sends email notification with CI results to the QA team.
+      # Requires secrets: SMTP_USERNAME, SMTP_PASSWORD
+      # =========================================================================
+      - name: Set Result Output
+        id: set_result
+        if: always()
+        run: |
+          # Check if all required jobs passed
+          if [ "${{ needs.preflight.result }}" == "success" ] && \
+             [ "${{ job.status }}" == "success" ]; then
+            echo "RESULT=PASS" >> $GITHUB_OUTPUT
+          else
+            echo "RESULT=FAIL" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Email Notification
+        uses: dawidd6/action-send-mail@6e71c855c9a091d80a519621b9fd3e8d252ca40c
+        if: always() && env.ENABLE_EMAIL_NOTIFICATION == 'true'
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "CI Result: AI Model Distillation for Financial Data - ${{ steps.set_result.outputs.RESULT }}"
+          to: Github-Action-Blueprint-QA@nvidia.com
+          from: github-workflow-notification@gmail.com
+          html_body: |
+            <h2>AI Model Distillation for Financial Data CI Notification</h2>
+            
+            <p><strong>Repository:</strong> ${{ github.repository }}</p>
+            <p><strong>Branch:</strong> ${{ github.ref_name }}</p>
+            <p><strong>Commit:</strong> ${{ github.sha }}</p>
+            <p><strong>Result:</strong> <span style="color: ${{ steps.set_result.outputs.RESULT == 'PASS' && 'green' || 'red' }}; font-weight: bold;">${{ steps.set_result.outputs.RESULT }}</span></p>
+            
+            <h3>Job Results</h3>
+            <table border="1" cellpadding="5" cellspacing="0">
+              <tr><th>Job</th><th>Status</th></tr>
+              <tr><td>Preflight</td><td>${{ needs.preflight.result }}</td></tr>
+              <tr><td>Deploy & Test</td><td>${{ job.status }}</td></tr>
+            </table>
+            
+            <p><a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">View Workflow Run</a></p>
