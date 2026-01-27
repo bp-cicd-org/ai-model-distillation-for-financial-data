@@ -1,0 +1,739 @@
+# =============================================================================
+# AI Model Distillation for Financial Data - CI/CD Pipeline
+# =============================================================================
+#
+# 部署方式说明 (Deployment Method):
+# ---------------------------------
+# 本项目使用 Docker Compose 脚本方式部署，而非 Notebook 部署。
+# Notebook (notebooks/ai-model-distillation-financial-data.ipynb) 用于交互式
+# 运行和监控 jobs，而非用于部署服务本身。
+#
+# 部署命令:
+#   docker compose -f ./deploy/docker-compose.yaml up -d --build
+#
+# =============================================================================
+# 硬件资源需求 (Hardware Requirements):
+# =============================================================================
+# | 资源类型       | 最低要求                                    |
+# |----------------|---------------------------------------------|
+# | GPU            | 2× NVIDIA A100/H100/H200/B200 GPUs          |
+# | 磁盘空间       | 至少 200 GB                                 |
+# | 内存           | 建议 64 GB+                                 |
+# | GPU 驱动版本   | >= 560.35.03                                |
+#
+# =============================================================================
+# 服务端口 (Service Ports):
+# =============================================================================
+# | 服务           | 端口  | 说明                                    |
+# |----------------|-------|-----------------------------------------|
+# | API Server     | 8000  | FastAPI 主服务                          |
+# | Elasticsearch  | 9200  | 日志存储                                |
+# | MongoDB        | 27017 | 数据库                                  |
+# | Redis          | 6379  | Celery broker                           |
+# | MLflow         | 5000  | 实验追踪 (可选)                         |
+#
+# =============================================================================
+# pytest 测试信息 (Test Information):
+# =============================================================================
+# 测试镜像: nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:latest
+# 测试文件: blueprint-github-test/testcases/dfw/test_dfw_api.py
+# pytest marker: dfw
+# API URL 参数: --dfw-api-url http://localhost:8000
+#
+# =============================================================================
+
+name: CI - Data Flywheel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'deploy/**'
+      - 'config/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/ci.yaml'
+
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'deploy/**'
+      - 'config/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/ci.yaml'
+
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: 'Run pytest tests after deployment'
+        required: false
+        default: true
+        type: boolean
+      enable_mlflow:
+        description: 'Enable MLflow for experiment tracking'
+        required: false
+        default: false
+        type: boolean
+      skip_cleanup:
+        description: 'Skip cleanup after tests (keep services running)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  # Required secrets
+  NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  MONGO_USERNAME: ${{ secrets.MONGO_USERNAME }}
+  MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+  REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+  HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+  # Configuration
+  ES_COLLECTION_NAME: flywheel
+  TAG: "0.3.0"
+
+  # Test configuration
+  TEST_IMAGE: nvcr.io/rw983xdqtcdp/auto_test_team/blueprint-github-test-image:latest
+  DFW_API_URL: http://localhost:8000
+  ENABLE_EMAIL_NOTIFICATION: false
+
+jobs:
+  # ===========================================================================
+  # Pre-flight Checks
+  # ===========================================================================
+  preflight:
+    name: Pre-flight Checks
+    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    outputs:
+      checks_passed: ${{ steps.final_check.outputs.passed }}
+    steps:
+      - name: Display Runner Information
+        run: |
+          echo "=========================================="
+          echo "Runner Information"
+          echo "=========================================="
+          echo "Runner Name: ${{ runner.name }}"
+          echo "Runner OS: ${{ runner.os }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "SHA: ${{ github.sha }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "=========================================="
+
+      - name: Check Required Secrets
+        id: check_secrets
+        run: |
+          echo "=========================================="
+          echo "Checking Required Secrets..."
+          echo "=========================================="
+
+          MISSING_SECRETS=""
+
+          # Check NVIDIA_API_KEY
+          if [ -z "${{ secrets.NVIDIA_API_KEY }}" ]; then
+            echo "✗ NVIDIA_API_KEY is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}NVIDIA_API_KEY "
+          else
+            echo "✓ NVIDIA_API_KEY is set (${#NVIDIA_API_KEY} chars)"
+          fi
+
+          # Check NGC_API_KEY
+          if [ -z "${{ secrets.NGC_API_KEY }}" ]; then
+            echo "✗ NGC_API_KEY is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}NGC_API_KEY "
+          else
+            echo "✓ NGC_API_KEY is set"
+          fi
+
+          # Check GH_TOKEN
+          if [ -z "${{ secrets.GH_TOKEN }}" ]; then
+            echo "✗ GH_TOKEN is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}GH_TOKEN "
+          else
+            echo "✓ GH_TOKEN is set"
+          fi
+
+          # Check MONGO_USERNAME
+          if [ -z "${{ secrets.MONGO_USERNAME }}" ]; then
+            echo "✗ MONGO_USERNAME is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}MONGO_USERNAME "
+          else
+            echo "✓ MONGO_USERNAME is set"
+          fi
+
+          # Check MONGO_PASSWORD
+          if [ -z "${{ secrets.MONGO_PASSWORD }}" ]; then
+            echo "✗ MONGO_PASSWORD is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}MONGO_PASSWORD "
+          else
+            echo "✓ MONGO_PASSWORD is set"
+          fi
+
+          # Check REDIS_PASSWORD
+          if [ -z "${{ secrets.REDIS_PASSWORD }}" ]; then
+            echo "✗ REDIS_PASSWORD is not set"
+            MISSING_SECRETS="${MISSING_SECRETS}REDIS_PASSWORD "
+          else
+            echo "✓ REDIS_PASSWORD is set"
+          fi
+
+          # Optional: HF_TOKEN
+          if [ -z "${{ secrets.HF_TOKEN }}" ]; then
+            echo "⚠ HF_TOKEN is not set (optional)"
+          else
+            echo "✓ HF_TOKEN is set"
+          fi
+
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo ""
+            echo "✗ Missing required secrets: $MISSING_SECRETS"
+            echo ""
+            echo "Please configure the following secrets in your repository:"
+            echo "  Settings -> Secrets and variables -> Actions -> New repository secret"
+            exit 1
+          fi
+
+          echo ""
+          echo "✓ All required secrets are configured"
+
+      - name: Check Docker Installation
+        id: check_docker
+        run: |
+          echo "=========================================="
+          echo "Checking Docker Installation..."
+          echo "=========================================="
+
+          if ! command -v docker &> /dev/null; then
+            echo "✗ Docker is not installed"
+            exit 1
+          fi
+
+          DOCKER_VERSION=$(docker --version)
+          echo "✓ Docker installed: $DOCKER_VERSION"
+
+          # Check Docker daemon is running
+          if ! docker info &> /dev/null; then
+            echo "✗ Docker daemon is not running"
+            exit 1
+          fi
+          echo "✓ Docker daemon is running"
+
+          # Check Docker Compose
+          if ! docker compose version &> /dev/null; then
+            echo "✗ Docker Compose v2 is not available"
+            exit 1
+          fi
+
+          COMPOSE_VERSION=$(docker compose version --short)
+          echo "✓ Docker Compose installed: $COMPOSE_VERSION"
+
+      - name: Check Required Ports Availability
+        id: check_ports
+        run: |
+          echo "=========================================="
+          echo "Checking Port Availability..."
+          echo "=========================================="
+
+          PORTS_IN_USE=""
+
+          for port in 8000 9200 27017 6379 5000; do
+            if ss -tuln | grep -q ":${port} " 2>/dev/null || netstat -tuln 2>/dev/null | grep -q ":${port} "; then
+              echo "⚠ Port $port is in use"
+              PORTS_IN_USE="${PORTS_IN_USE}${port} "
+            else
+              echo "✓ Port $port is available"
+            fi
+          done
+
+          if [ -n "$PORTS_IN_USE" ]; then
+            echo ""
+            echo "⚠ Some ports are in use: $PORTS_IN_USE"
+            echo "  This may cause deployment issues."
+          fi
+
+      - name: Check Disk Space
+        id: check_disk
+        run: |
+          echo "=========================================="
+          echo "Checking Disk Space..."
+          echo "=========================================="
+
+          # Get available disk space in GB
+          AVAILABLE_GB=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+          REQUIRED_GB=200
+
+          echo "Available disk space: ${AVAILABLE_GB}GB"
+          echo "Required minimum: ${REQUIRED_GB}GB"
+
+          if [ "$AVAILABLE_GB" -lt "$REQUIRED_GB" ]; then
+            echo "✗ Insufficient disk space. Need at least ${REQUIRED_GB}GB, have ${AVAILABLE_GB}GB"
+            exit 1
+          fi
+
+          echo "✓ Sufficient disk space available"
+
+      - name: Check GPU Availability
+        id: check_gpu
+        run: |
+          echo "=========================================="
+          echo "Checking GPU Availability..."
+          echo "=========================================="
+
+          REQUIRED_GPUS=2
+          REQUIRED_DRIVER_VERSION="560.35.03"
+
+          # Try to run nvidia-smi in a GPU container
+          GPU_INFO=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv 2>&1) || {
+            echo "⚠ Could not access GPU via Docker."
+            echo "⚠ Error: $GPU_INFO"
+            echo "gpu_available=false" >> $GITHUB_OUTPUT
+            exit 0
+          }
+
+          echo "GPU Information:"
+          echo "$GPU_INFO"
+          echo ""
+
+          # Get GPU count
+          GPU_COUNT=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l)
+          echo "Found $GPU_COUNT GPU(s), Required: $REQUIRED_GPUS"
+
+          if [ "$GPU_COUNT" -lt "$REQUIRED_GPUS" ]; then
+            echo "⚠ Insufficient GPUs. Need at least $REQUIRED_GPUS, have $GPU_COUNT"
+            echo "gpu_available=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "✓ GPU count check passed"
+
+          # Check GPU driver version
+          DRIVER_VERSION=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
+          echo "GPU Driver version: $DRIVER_VERSION, Required: >= $REQUIRED_DRIVER_VERSION"
+
+          echo "✓ GPU checks passed"
+          echo "gpu_available=true" >> $GITHUB_OUTPUT
+
+      - name: Validate NVIDIA API Key
+        id: validate_nvidia_api
+        run: |
+          echo "=========================================="
+          echo "Validating NVIDIA API Key..."
+          echo "=========================================="
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $NVIDIA_API_KEY" \
+            -H "Content-Type: application/json" \
+            "https://integrate.api.nvidia.com/v1/models" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✓ NVIDIA API Key is valid"
+          elif [ "$HTTP_STATUS" = "401" ] || [ "$HTTP_STATUS" = "403" ]; then
+            echo "✗ NVIDIA API Key is invalid or expired (HTTP $HTTP_STATUS)"
+            exit 1
+          elif [ "$HTTP_STATUS" = "000" ]; then
+            echo "⚠ Could not reach NVIDIA API (network issue). Proceeding anyway..."
+          else
+            echo "⚠ Unexpected response from NVIDIA API (HTTP $HTTP_STATUS). Proceeding anyway..."
+          fi
+
+      - name: Final Pre-check Summary
+        id: final_check
+        run: |
+          echo "=========================================="
+          echo "Pre-flight Checks Complete"
+          echo "=========================================="
+          echo ""
+          echo "All critical checks passed. Ready for deployment."
+          echo ""
+          echo "passed=true" >> $GITHUB_OUTPUT
+
+  # ===========================================================================
+  # Deploy Services
+  # ===========================================================================
+  deploy:
+    name: Deploy Services
+    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    needs: preflight
+    if: needs.preflight.outputs.checks_passed == 'true'
+    outputs:
+      deploy_success: ${{ steps.verify_deployment.outputs.success }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Environment File
+        run: |
+          echo "=========================================="
+          echo "Creating Environment File..."
+          echo "=========================================="
+
+          cat > deploy/.env << EOF
+          MONGO_USERNAME=${MONGO_USERNAME}
+          MONGO_PASSWORD=${MONGO_PASSWORD}
+          REDIS_PASSWORD=${REDIS_PASSWORD}
+          NVIDIA_API_KEY=${NVIDIA_API_KEY}
+          NGC_API_KEY=${NGC_API_KEY}
+          LLM_JUDGE_API_KEY=${NVIDIA_API_KEY}
+          EMB_API_KEY=${NVIDIA_API_KEY}
+          HF_TOKEN=${HF_TOKEN}
+          ES_COLLECTION_NAME=${ES_COLLECTION_NAME}
+          TAG=${TAG}
+          EOF
+
+          # Add MLflow profile if enabled
+          if [ "${{ inputs.enable_mlflow }}" = "true" ]; then
+            echo "COMPOSE_PROFILES=mlflow" >> deploy/.env
+          fi
+
+          echo "✓ Environment file created"
+
+      - name: Login to NVIDIA Container Registry
+        run: |
+          echo "=========================================="
+          echo "Logging in to NVIDIA Container Registry..."
+          echo "=========================================="
+
+          echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+          echo "✓ Logged in to nvcr.io"
+
+      - name: Deploy Services via Docker Compose
+        run: |
+          echo "=========================================="
+          echo "Deploying Services..."
+          echo "=========================================="
+
+          cd deploy
+
+          # Pull images (ignore failures for local builds)
+          docker compose -f docker-compose.yaml pull --ignore-pull-failures || true
+
+          # Start services
+          docker compose -f docker-compose.yaml up -d --build
+
+          echo "✓ Services started"
+
+      - name: Wait for Services to Initialize
+        run: |
+          echo "=========================================="
+          echo "Waiting for Services to Initialize..."
+          echo "=========================================="
+
+          # Wait for initial startup
+          sleep 30
+
+          echo "Container Status:"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+      - name: Verify Service Health
+        id: verify_deployment
+        run: |
+          echo "=========================================="
+          echo "Verifying Service Health..."
+          echo "=========================================="
+
+          MAX_RETRIES=60
+          RETRY_INTERVAL=5
+          ALL_HEALTHY=true
+
+          # Check Elasticsearch
+          echo ""
+          echo "--- Checking Elasticsearch ---"
+          ES_OK=false
+          for i in $(seq 1 $MAX_RETRIES); do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:9200/_cluster/health" 2>/dev/null || echo "000")
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✓ Elasticsearch is healthy"
+              ES_OK=true
+              break
+            fi
+            echo "  Waiting for Elasticsearch... (attempt $i/$MAX_RETRIES, status: $HTTP_STATUS)"
+            sleep $RETRY_INTERVAL
+          done
+
+          if [ "$ES_OK" != "true" ]; then
+            echo "✗ Elasticsearch failed to start"
+            ALL_HEALTHY=false
+          fi
+
+          # Check API Server
+          echo ""
+          echo "--- Checking API Server ---"
+          API_OK=false
+          for i in $(seq 1 $MAX_RETRIES); do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/api/jobs" 2>/dev/null || echo "000")
+            if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "401" ] || [ "$HTTP_STATUS" = "404" ]; then
+              echo "✓ API Server is responding (HTTP $HTTP_STATUS)"
+              API_OK=true
+              break
+            fi
+            echo "  Waiting for API Server... (attempt $i/$MAX_RETRIES, status: $HTTP_STATUS)"
+            sleep $RETRY_INTERVAL
+          done
+
+          if [ "$API_OK" != "true" ]; then
+            echo "✗ API Server failed to start"
+            docker logs $(docker ps -aqf "name=api" | head -1) 2>&1 | tail -100 || true
+            ALL_HEALTHY=false
+          fi
+
+          # Check Redis
+          echo ""
+          echo "--- Checking Redis ---"
+          REDIS_OK=false
+          for i in $(seq 1 10); do
+            if docker exec $(docker ps -qf "name=redis" | head -1) redis-cli -a "$REDIS_PASSWORD" ping 2>/dev/null | grep -q "PONG"; then
+              echo "✓ Redis is healthy"
+              REDIS_OK=true
+              break
+            fi
+            echo "  Waiting for Redis... (attempt $i/10)"
+            sleep 5
+          done
+
+          if [ "$REDIS_OK" != "true" ]; then
+            echo "✗ Redis failed to start"
+            ALL_HEALTHY=false
+          fi
+
+          # Check MongoDB
+          echo ""
+          echo "--- Checking MongoDB ---"
+          MONGO_OK=false
+          for i in $(seq 1 10); do
+            if docker exec $(docker ps -qf "name=mongodb" | head -1) mongosh --eval "db.runCommand('ping').ok" --quiet -u "$MONGO_USERNAME" -p "$MONGO_PASSWORD" 2>/dev/null | grep -q "1"; then
+              echo "✓ MongoDB is healthy"
+              MONGO_OK=true
+              break
+            fi
+            echo "  Waiting for MongoDB... (attempt $i/10)"
+            sleep 5
+          done
+
+          if [ "$MONGO_OK" != "true" ]; then
+            echo "✗ MongoDB failed to start"
+            ALL_HEALTHY=false
+          fi
+
+          echo ""
+          if [ "$ALL_HEALTHY" = "true" ]; then
+            echo "=========================================="
+            echo "✓ All services are healthy!"
+            echo "=========================================="
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "=========================================="
+            echo "✗ Some services failed to start"
+            echo "=========================================="
+            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Verify API Endpoints
+        run: |
+          echo "=========================================="
+          echo "Verifying API Endpoints..."
+          echo "=========================================="
+
+          # Test GET /api/jobs endpoint
+          echo ""
+          echo "--- Testing GET /api/jobs ---"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "http://localhost:8000/api/jobs")
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS")
+
+          echo "Status: $HTTP_STATUS"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✓ GET /api/jobs endpoint is working"
+          else
+            echo "✗ GET /api/jobs endpoint failed"
+            exit 1
+          fi
+
+          # Test API docs
+          echo ""
+          echo "--- Testing API Documentation ---"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/docs")
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✓ API Documentation is accessible"
+          else
+            echo "⚠ API Documentation returned HTTP $HTTP_STATUS"
+          fi
+
+      - name: Display Deployment Summary
+        run: |
+          echo "=========================================="
+          echo "Deployment Summary"
+          echo "=========================================="
+          echo ""
+          echo "Container Status:"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          echo ""
+          echo "Service Endpoints:"
+          echo "  - API Server: http://localhost:8000"
+          echo "  - API Documentation: http://localhost:8000/docs"
+          echo "  - Elasticsearch: http://localhost:9200"
+          echo "  - MongoDB: localhost:27017"
+          echo "  - Redis: localhost:6379"
+          echo ""
+
+  # ===========================================================================
+  # Run pytest Tests
+  # ===========================================================================
+  pytest:
+    name: Run pytest Tests
+    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    needs: deploy
+    if: ${{ !cancelled() && needs.deploy.outputs.deploy_success == 'true' && (github.event.inputs.run_tests != 'false') }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Pull Test Image
+        run: |
+          echo "=========================================="
+          echo "Pulling Test Image..."
+          echo "=========================================="
+
+          echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+
+          docker pull ${TEST_IMAGE}
+
+          echo "✓ Test image pulled successfully"
+
+      - name: Verify API is Ready for Testing
+        run: |
+          echo "=========================================="
+          echo "Verifying API is Ready for Testing..."
+          echo "=========================================="
+
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${DFW_API_URL}/api/jobs" 2>/dev/null || echo "000")
+
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✓ API is ready at ${DFW_API_URL}"
+              break
+            fi
+
+            echo "  Waiting for API... (attempt $ATTEMPT/$MAX_ATTEMPTS, status: $HTTP_STATUS)"
+            sleep 5
+          done
+
+          if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+            echo "✗ API failed to become ready after $MAX_ATTEMPTS attempts"
+            exit 1
+          fi
+
+      - name: Create Test Reports Directory
+        run: |
+          mkdir -p test_reports
+
+      - name: Run pytest - DFW API Tests
+        run: |
+          echo "=========================================="
+          echo "Running pytest Tests..."
+          echo "=========================================="
+          echo ""
+          echo "Test Configuration:"
+          echo "  - Test Image: ${TEST_IMAGE}"
+          echo "  - DFW API URL: ${DFW_API_URL}"
+          echo "  - pytest marker: dfw"
+          echo ""
+
+          docker run --rm --network host \
+            -v "$(pwd)/test_reports:/app/reports" \
+            -e DFW_API_URL="${DFW_API_URL}" \
+            ${TEST_IMAGE} \
+            pytest testcases/dfw/test_dfw_api.py \
+              -m "dfw" \
+              --dfw-api-url "${DFW_API_URL}" \
+              --html=/app/reports/dfw_test_report.html \
+              --self-contained-html \
+              -v
+
+          echo ""
+          echo "✓ pytest tests completed"
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-test-reports
+          path: test_reports/*.html
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Display Test Results Summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "Test Results Summary"
+          echo "=========================================="
+
+          if [ -f "test_reports/dfw_test_report.html" ]; then
+            echo "✓ Test report generated: test_reports/dfw_test_report.html"
+          else
+            echo "⚠ No test report found"
+          fi
+
+  # ===========================================================================
+  # Cleanup
+  # ===========================================================================
+  cleanup:
+    name: Cleanup
+    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    needs: [deploy, pytest]
+    if: always() && github.event.inputs.skip_cleanup != 'true'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Stop and Remove Services
+        run: |
+          echo "=========================================="
+          echo "Cleaning up deployment..."
+          echo "=========================================="
+
+          cd deploy
+
+          # Stop and remove containers, networks, volumes
+          docker compose -f docker-compose.yaml down --volumes --remove-orphans || true
+
+          # Clean up any dangling resources
+          docker system prune -f || true
+
+          echo "✓ Cleanup complete"
+
+      - name: Collect Logs on Failure
+        if: failure()
+        run: |
+          echo "=========================================="
+          echo "Collecting Logs for Debugging..."
+          echo "=========================================="
+
+          echo ""
+          echo "--- Container Status ---"
+          docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+          echo ""
+          echo "--- API Container Logs ---"
+          docker compose -f deploy/docker-compose.yaml logs api --tail=100 2>/dev/null || echo "No API logs available"
+
+          echo ""
+          echo "--- Celery Worker Logs ---"
+          docker compose -f deploy/docker-compose.yaml logs celery_worker --tail=50 2>/dev/null || echo "No Celery logs available"
