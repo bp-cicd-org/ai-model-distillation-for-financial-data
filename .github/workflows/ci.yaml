@@ -354,21 +354,22 @@ jobs:
           echo "passed=true" >> $GITHUB_OUTPUT
 
   # ===========================================================================
-  # Deploy Services
+  # Deploy Services and Run Tests (Same Job to Share Services)
   # ===========================================================================
-  deploy:
-    name: Deploy Services
+  deploy-and-test:
+    name: Deploy and Test
     runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
     needs: preflight
     if: needs.preflight.outputs.checks_passed == 'true'
-    outputs:
-      deploy_success: ${{ steps.verify_deployment.outputs.success }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # =========================================================================
+      # Deploy Services
+      # =========================================================================
       - name: Create Environment File
         run: |
           echo "=========================================="
@@ -587,31 +588,22 @@ jobs:
           echo "  - Redis: localhost:6379"
           echo ""
 
-  # ===========================================================================
-  # Run pytest Tests
-  # ===========================================================================
-  pytest:
-    name: Run pytest Tests
-    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
-    needs: deploy
-    if: ${{ !cancelled() && needs.deploy.outputs.deploy_success == 'true' && (github.event.inputs.run_tests != 'false') }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
+      # =========================================================================
+      # Run pytest Tests (in same job to access deployed services)
+      # =========================================================================
       - name: Pull Test Image
+        if: github.event.inputs.run_tests != 'false'
         run: |
           echo "=========================================="
           echo "Pulling Test Image..."
           echo "=========================================="
-
-          echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
 
           docker pull ${TEST_IMAGE}
 
           echo "✓ Test image pulled successfully"
 
       - name: Verify API is Ready for Testing
+        if: github.event.inputs.run_tests != 'false'
         run: |
           echo "=========================================="
           echo "Verifying API is Ready for Testing..."
@@ -640,10 +632,12 @@ jobs:
           fi
 
       - name: Create Test Reports Directory
+        if: github.event.inputs.run_tests != 'false'
         run: |
           mkdir -p test_reports
 
       - name: Run pytest - DFW API Tests
+        if: github.event.inputs.run_tests != 'false'
         run: |
           echo "=========================================="
           echo "Running pytest Tests..."
@@ -670,7 +664,7 @@ jobs:
           echo "✓ pytest tests completed"
 
       - name: Upload Test Reports
-        if: always()
+        if: always() && github.event.inputs.run_tests != 'false'
         uses: actions/upload-artifact@v4
         with:
           name: pytest-test-reports
@@ -679,7 +673,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Display Test Results Summary
-        if: always()
+        if: always() && github.event.inputs.run_tests != 'false'
         run: |
           echo "=========================================="
           echo "Test Results Summary"
@@ -691,19 +685,11 @@ jobs:
             echo "⚠ No test report found"
           fi
 
-  # ===========================================================================
-  # Cleanup
-  # ===========================================================================
-  cleanup:
-    name: Cleanup
-    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
-    needs: [deploy, pytest]
-    if: always() && github.event.inputs.skip_cleanup != 'true'
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Stop and Remove Services
+      # =========================================================================
+      # Cleanup (at end of same job)
+      # =========================================================================
+      - name: Cleanup Services
+        if: always() && github.event.inputs.skip_cleanup != 'true'
         run: |
           echo "=========================================="
           echo "Cleaning up deployment..."
