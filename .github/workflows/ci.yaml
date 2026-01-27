@@ -668,7 +668,8 @@ jobs:
           echo ""
 
           # Install required Python packages
-          pip install datasets elasticsearch
+          # Use --break-system-packages for externally-managed Python environments (PEP 668)
+          pip install --break-system-packages datasets elasticsearch
 
           # Create Python script to download and load data
           cat > /tmp/load_hf_data.py << 'PYTHON_EOF'
