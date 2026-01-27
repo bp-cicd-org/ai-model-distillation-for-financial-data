@@ -693,7 +693,8 @@ jobs:
           CLIENT_ID = "aiva-1"
           ES_URL = "http://localhost:9200"
           ES_INDEX = "flywheel"
-          MIN_RECORDS = 100
+          # MIN_RECORDS must be large enough for train/test split (at least 200+)
+          MIN_RECORDS = 500
 
           print("Downloading dataset from Huggingface: ic-fspml/stock_news_sentiment")
           ds = load_dataset("ic-fspml/stock_news_sentiment")
