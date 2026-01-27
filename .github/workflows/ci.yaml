@@ -669,7 +669,8 @@ jobs:
 
           # Install required Python packages
           # Use --break-system-packages for externally-managed Python environments (PEP 668)
-          pip install --break-system-packages datasets elasticsearch
+          # elasticsearch==8.* is required for compatibility with Elasticsearch 8.12.2 server
+          pip install --break-system-packages datasets "elasticsearch>=8.0.0,<9.0.0"
 
           # Run Python script directly to download and load data
           # =====================================================================
