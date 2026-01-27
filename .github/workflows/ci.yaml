@@ -638,6 +638,149 @@ jobs:
         run: |
           mkdir -p test_reports
 
+      # =========================================================================
+      # Load Test Data from Huggingface
+      # =========================================================================
+      # Data Source (from notebook Section 1.1):
+      #   The notebook (notebooks/ai-model-distillation-financial-data.ipynb)
+      #   recommends using the "ic-fspml/stock_news_sentiment" dataset from
+      #   Huggingface for financial news classification tasks.
+      #
+      #   Reference: https://huggingface.co/datasets/ic-fspml/stock_news_sentiment
+      #
+      # Override for CI Testing:
+      #   - Original notebook uses "news_classifier" as workload_id
+      #   - We override to use "primary_assistant" and "aiva-1" to match
+      #     the pytest test cases in blueprint-github-test/testcases/dfw/test_dfw_api.py
+      #   - Data is transformed to OpenAI-style request/response format
+      #     as required by the Data Flywheel API
+      #   - Minimum 100 records are loaded to satisfy the 50-record requirement
+      # =========================================================================
+      - name: Load Test Data from Huggingface
+        if: github.event.inputs.run_tests != 'false'
+        run: |
+          echo "=========================================="
+          echo "Loading Test Data from Huggingface..."
+          echo "=========================================="
+          echo ""
+          echo "Data Source: ic-fspml/stock_news_sentiment (from notebook Section 1.1)"
+          echo "Override: workload_id=primary_assistant, client_id=aiva-1 (to match pytest)"
+          echo ""
+
+          # Install required Python packages
+          pip install datasets elasticsearch
+
+          # Create Python script to download and load data
+          cat > /tmp/load_hf_data.py << 'PYTHON_EOF'
+          import json
+          import sys
+          from datetime import datetime
+          from datasets import load_dataset
+          from elasticsearch import Elasticsearch
+
+          # =======================================================================
+          # Configuration - Override for CI Testing
+          # =======================================================================
+          # These values are overridden to match the pytest test cases:
+          #   - Original notebook uses: workload_id="news_classifier"
+          #   - Pytest expects: workload_id="primary_assistant", client_id="aiva-1"
+          # =======================================================================
+          WORKLOAD_ID = "primary_assistant"  # Override: pytest expects this value
+          CLIENT_ID = "aiva-1"               # Override: pytest expects this value
+          ES_URL = "http://localhost:9200"
+          ES_INDEX = "flywheel"
+          MIN_RECORDS = 100  # Load at least 100 records (pytest requires minimum 50)
+
+          # =======================================================================
+          # Download Dataset from Huggingface
+          # =======================================================================
+          # Dataset: ic-fspml/stock_news_sentiment
+          # Source: https://huggingface.co/datasets/ic-fspml/stock_news_sentiment
+          # This dataset is recommended in the notebook (Section 1.1) for
+          # financial news headline classification tasks.
+          # =======================================================================
+          print(f"Downloading dataset from Huggingface: ic-fspml/stock_news_sentiment")
+          ds = load_dataset("ic-fspml/stock_news_sentiment")
+
+          print(f"Dataset loaded. Train split has {len(ds['train'])} records")
+
+          # Connect to Elasticsearch
+          es = Elasticsearch([ES_URL])
+
+          # Check if index exists, create if not
+          if not es.indices.exists(index=ES_INDEX):
+              es.indices.create(index=ES_INDEX)
+              print(f"Created Elasticsearch index: {ES_INDEX}")
+
+          # Transform and load data
+          records_loaded = 0
+          for i, item in enumerate(ds['train']):
+              if records_loaded >= MIN_RECORDS:
+                  break
+
+              # Get headline from dataset
+              headline = item.get('article_headline', item.get('headline', ''))
+              if not headline:
+                  continue
+
+              # Create timestamp
+              timestamp = int(datetime.utcnow().timestamp()) + i
+
+              # Create OpenAI-style request/response document
+              doc = {
+                  "timestamp": timestamp,
+                  "workload_id": WORKLOAD_ID,
+                  "client_id": CLIENT_ID,
+                  "request": {
+                      "model": "meta/llama-3.3-70b-instruct",
+                      "messages": [
+                          {"role": "system", "content": "You are a financial news classifier."},
+                          {"role": "user", "content": f"Classify this headline: {headline}"}
+                      ]
+                  },
+                  "response": {
+                      "choices": [
+                          {
+                              "message": {
+                                  "role": "assistant",
+                                  "content": "[[[analyst rating]]]"
+                              }
+                          }
+                      ]
+                  }
+              }
+
+              # Index the document
+              es.index(index=ES_INDEX, document=doc)
+              records_loaded += 1
+
+              if records_loaded % 20 == 0:
+                  print(f"  Loaded {records_loaded} records...")
+
+          # Flush and refresh the index
+          es.indices.flush(index=ES_INDEX)
+          es.indices.refresh(index=ES_INDEX)
+
+          print(f"✓ Successfully loaded {records_loaded} records to Elasticsearch")
+          print(f"  - workload_id: {WORKLOAD_ID}")
+          print(f"  - client_id: {CLIENT_ID}")
+          print(f"  - index: {ES_INDEX}")
+
+          # Verify data was loaded
+          count = es.count(index=ES_INDEX)['count']
+          print(f"  - Total records in index: {count}")
+
+          if count < 50:
+              print(f"✗ ERROR: Not enough records loaded. Need at least 50, got {count}")
+              sys.exit(1)
+          PYTHON_EOF
+
+          # Run the data loading script
+          python3 /tmp/load_hf_data.py
+
+          echo ""
+          echo "✓ Test data loaded successfully"
+
       - name: Run pytest - DFW API Tests
         if: github.event.inputs.run_tests != 'false'
         run: |
