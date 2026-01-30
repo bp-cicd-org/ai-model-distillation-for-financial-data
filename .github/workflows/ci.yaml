@@ -80,22 +80,10 @@ on:
       - '.github/workflows/ci.yaml'
 
   workflow_dispatch:
-    inputs:
-      run_tests:
-        description: 'Run pytest tests after deployment'
-        required: false
-        default: true
-        type: boolean
-      enable_mlflow:
-        description: 'Enable MLflow for experiment tracking'
-        required: false
-        default: false
-        type: boolean
-      skip_cleanup:
-        description: 'Skip cleanup after tests (keep services running)'
-        required: false
-        default: false
-        type: boolean
+    # No inputs required - workflow runs with default configuration:
+    # - MLflow: always enabled
+    # - pytest: commented out (not running)
+    # - Cleanup: disabled (services kept running for inspection)
 
 env:
   # Required secrets
@@ -405,12 +393,10 @@ jobs:
           TAG=${TAG}
           EOF
 
-          # Add MLflow profile if enabled
-          if [ "${{ inputs.enable_mlflow }}" = "true" ]; then
-            echo "COMPOSE_PROFILES=mlflow" >> deploy/.env
-          fi
+          # Always enable MLflow for experiment tracking
+          echo "COMPOSE_PROFILES=mlflow" >> deploy/.env
 
-          echo "✓ Environment file created"
+          echo "✓ Environment file created (with MLflow enabled)"
 
       - name: Login to NVIDIA Container Registry
         run: |
@@ -605,6 +591,49 @@ jobs:
           echo ""
 
       # =========================================================================
+      # Initialize Elasticsearch Index
+      # =========================================================================
+      # Create the flywheel index to verify Elasticsearch is properly configured
+      # and ready to receive data. This is a minimal setup for deployment validation.
+      # =========================================================================
+      - name: Initialize Elasticsearch Index
+        run: |
+          echo "=========================================="
+          echo "Initializing Elasticsearch Index..."
+          echo "=========================================="
+
+          # Create flywheel index with basic settings
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PUT "http://localhost:9200/flywheel" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0
+              }
+            }' 2>/dev/null || echo "000")
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✓ Flywheel index created successfully"
+          elif [ "$HTTP_STATUS" = "400" ]; then
+            # Index might already exist
+            echo "- Flywheel index already exists"
+          else
+            echo "✗ Failed to create flywheel index: HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          # Verify index exists
+          VERIFY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:9200/flywheel" 2>/dev/null || echo "000")
+          if [ "$VERIFY_STATUS" = "200" ]; then
+            echo "✓ Flywheel index verified"
+          else
+            echo "✗ Flywheel index verification failed: HTTP $VERIFY_STATUS"
+            exit 1
+          fi
+
+          echo ""
+
+      # =========================================================================
       # Comprehensive Service Health Check
       # =========================================================================
       # This step performs a final comprehensive health check on all services
@@ -625,7 +654,7 @@ jobs:
           # 1. Check all containers are running
           # ---------------------------------------------------------------
           echo "--- 1. Container Status Check ---"
-          EXPECTED_SERVICES="api celery_worker celery_parent_worker redis mongodb elasticsearch"
+          EXPECTED_SERVICES="api celery_worker celery_parent_worker redis mongodb elasticsearch mlflow"
           
           for service in $EXPECTED_SERVICES; do
             CONTAINER_STATUS=$(docker ps --filter "name=$service" --format "{{.Status}}" | head -1)
@@ -644,21 +673,12 @@ jobs:
           # ---------------------------------------------------------------
           echo "--- 2. API Server Health Check ---"
           
-          # Test root endpoint
-          API_ROOT=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/" 2>/dev/null || echo "000")
-          if [ "$API_ROOT" = "200" ] || [ "$API_ROOT" = "404" ]; then
-            echo "✓ API Root: HTTP $API_ROOT"
-          else
-            echo "✗ API Root: HTTP $API_ROOT"
-            HEALTH_STATUS="FAIL"
-          fi
-
-          # Test /api/jobs endpoint
+          # Test /api/jobs endpoint (primary endpoint)
           API_JOBS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/api/jobs" 2>/dev/null || echo "000")
           if [ "$API_JOBS" = "200" ]; then
             echo "✓ API /api/jobs: HTTP $API_JOBS"
           else
-            echo "✗ API /api/jobs: HTTP $API_JOBS"
+            echo "✗ API /api/jobs: HTTP $API_JOBS (CRITICAL - main API endpoint failed)"
             HEALTH_STATUS="FAIL"
           fi
 
@@ -667,7 +687,8 @@ jobs:
           if [ "$API_DOCS" = "200" ]; then
             echo "✓ API Documentation: HTTP $API_DOCS"
           else
-            echo "⚠ API Documentation: HTTP $API_DOCS (non-critical)"
+            echo "✗ API Documentation: HTTP $API_DOCS"
+            HEALTH_STATUS="FAIL"
           fi
 
           # Test /openapi.json endpoint
@@ -675,7 +696,8 @@ jobs:
           if [ "$API_OPENAPI" = "200" ]; then
             echo "✓ OpenAPI Schema: HTTP $API_OPENAPI"
           else
-            echo "⚠ OpenAPI Schema: HTTP $API_OPENAPI (non-critical)"
+            echo "✗ OpenAPI Schema: HTTP $API_OPENAPI"
+            HEALTH_STATUS="FAIL"
           fi
           echo ""
 
@@ -696,9 +718,17 @@ jobs:
             HEALTH_STATUS="FAIL"
           fi
 
-          # Check if flywheel index exists or can be created
+          # Check if flywheel index exists (should be created by Initialize Elasticsearch Index step)
           ES_INDEX_CHECK=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:9200/flywheel" 2>/dev/null || echo "000")
-          echo "  - Flywheel index status: HTTP $ES_INDEX_CHECK"
+          if [ "$ES_INDEX_CHECK" = "200" ]; then
+            echo "✓ Flywheel index: exists"
+            # Get index document count
+            DOC_COUNT=$(curl -s "http://localhost:9200/flywheel/_count" 2>/dev/null | grep -o '"count":[0-9]*' | cut -d':' -f2 || echo "0")
+            echo "  - Document count: $DOC_COUNT"
+          else
+            echo "✗ Flywheel index: not found (HTTP $ES_INDEX_CHECK)"
+            HEALTH_STATUS="FAIL"
+          fi
           echo ""
 
           # ---------------------------------------------------------------
@@ -754,25 +784,77 @@ jobs:
           # ---------------------------------------------------------------
           echo "--- 6. Celery Workers Health Check ---"
           
-          # Check celery_worker container logs for startup
-          CELERY_WORKER=$(docker ps -qf "name=celery_worker" | head -1)
+          # Check celery_worker container (use exact name match to avoid matching celery_parent_worker)
+          CELERY_WORKER=$(docker ps -qf "name=^celery_worker$" 2>/dev/null | head -1)
+          if [ -z "$CELERY_WORKER" ]; then
+            # Try with deploy prefix
+            CELERY_WORKER=$(docker ps -qf "name=celery_worker" 2>/dev/null | grep -v parent | head -1)
+          fi
+          
           if [ -n "$CELERY_WORKER" ]; then
-            CELERY_READY=$(docker logs $CELERY_WORKER 2>&1 | grep -c "celery@" || echo "0")
-            if [ "$CELERY_READY" -gt "0" ]; then
-              echo "✓ Celery Worker: Running"
+            # Check if container is running and has started celery
+            CONTAINER_STATUS=$(docker inspect --format='{{.State.Status}}' "$CELERY_WORKER" 2>/dev/null || echo "unknown")
+            if [ "$CONTAINER_STATUS" = "running" ]; then
+              echo "✓ Celery Worker: Running (container: $CELERY_WORKER)"
             else
-              echo "⚠ Celery Worker: Started but may not be fully ready"
+              echo "✗ Celery Worker: Status=$CONTAINER_STATUS"
+              HEALTH_STATUS="FAIL"
             fi
           else
             echo "✗ Celery Worker container not found"
             HEALTH_STATUS="FAIL"
           fi
 
-          CELERY_PARENT=$(docker ps -qf "name=celery_parent_worker" | head -1)
+          # Check celery_parent_worker container
+          CELERY_PARENT=$(docker ps -qf "name=celery_parent_worker" 2>/dev/null | head -1)
           if [ -n "$CELERY_PARENT" ]; then
-            echo "✓ Celery Parent Worker: Running"
+            CONTAINER_STATUS=$(docker inspect --format='{{.State.Status}}' "$CELERY_PARENT" 2>/dev/null || echo "unknown")
+            if [ "$CONTAINER_STATUS" = "running" ]; then
+              echo "✓ Celery Parent Worker: Running"
+            else
+              echo "✗ Celery Parent Worker: Status=$CONTAINER_STATUS"
+              HEALTH_STATUS="FAIL"
+            fi
           else
             echo "✗ Celery Parent Worker container not found"
+            HEALTH_STATUS="FAIL"
+          fi
+          echo ""
+
+          # ---------------------------------------------------------------
+          # 7. MLflow Health Check
+          # ---------------------------------------------------------------
+          echo "--- 7. MLflow Health Check ---"
+          
+          # Check MLflow container is running
+          MLFLOW_CONTAINER=$(docker ps -qf "name=mlflow" 2>/dev/null | head -1)
+          if [ -n "$MLFLOW_CONTAINER" ]; then
+            CONTAINER_STATUS=$(docker inspect --format='{{.State.Status}}' "$MLFLOW_CONTAINER" 2>/dev/null || echo "unknown")
+            if [ "$CONTAINER_STATUS" = "running" ]; then
+              echo "✓ MLflow Container: Running"
+              
+              # Check MLflow HTTP endpoint
+              MLFLOW_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:5000/" 2>/dev/null || echo "000")
+              if [ "$MLFLOW_HTTP" = "200" ]; then
+                echo "✓ MLflow UI: HTTP $MLFLOW_HTTP (http://localhost:5000)"
+              else
+                echo "✗ MLflow UI: HTTP $MLFLOW_HTTP"
+                HEALTH_STATUS="FAIL"
+              fi
+              
+              # Check MLflow API endpoint
+              MLFLOW_API=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:5000/api/2.0/mlflow/experiments/search" 2>/dev/null || echo "000")
+              if [ "$MLFLOW_API" = "200" ]; then
+                echo "✓ MLflow API: HTTP $MLFLOW_API"
+              else
+                echo "⚠ MLflow API: HTTP $MLFLOW_API (non-critical)"
+              fi
+            else
+              echo "✗ MLflow Container: Status=$CONTAINER_STATUS"
+              HEALTH_STATUS="FAIL"
+            fi
+          else
+            echo "✗ MLflow container not found"
             HEALTH_STATUS="FAIL"
           fi
           echo ""
@@ -814,6 +896,7 @@ jobs:
           echo "  - Elasticsearch:     http://localhost:9200"
           echo "  - MongoDB:           localhost:27017"
           echo "  - Redis:             localhost:6379"
+          echo "  - MLflow UI:         http://localhost:5000"
           echo ""
           echo "Container Status:"
           docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
@@ -1049,24 +1132,27 @@ jobs:
       #     fi
 
       # =========================================================================
-      # Cleanup (at end of same job)
+      # Cleanup (DISABLED - services kept running for inspection)
       # =========================================================================
-      - name: Cleanup Services
-        if: always() && github.event.inputs.skip_cleanup != 'true'
-        run: |
-          echo "=========================================="
-          echo "Cleaning up deployment..."
-          echo "=========================================="
-
-          cd deploy
-
-          # Stop and remove containers, networks, volumes
-          docker compose -f docker-compose.yaml down --volumes --remove-orphans || true
-
-          # Clean up any dangling resources
-          docker system prune -f || true
-
-          echo "✓ Cleanup complete"
+      # Cleanup is disabled to allow post-deployment inspection of services.
+      # To re-enable cleanup, uncomment the following step.
+      # =========================================================================
+      # - name: Cleanup Services
+      #   if: always()
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Cleaning up deployment..."
+      #     echo "=========================================="
+      #
+      #     cd deploy
+      #
+      #     # Stop and remove containers, networks, volumes
+      #     docker compose -f docker-compose.yaml down --volumes --remove-orphans || true
+      #
+      #     # Clean up any dangling resources
+      #     docker system prune -f || true
+      #
+      #     echo "✓ Cleanup complete"
 
       - name: Collect Logs on Failure
         if: failure()
