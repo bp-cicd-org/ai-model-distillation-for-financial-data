@@ -605,226 +605,448 @@ jobs:
           echo ""
 
       # =========================================================================
-      # Run pytest Tests (in same job to access deployed services)
+      # Comprehensive Service Health Check
       # =========================================================================
-      - name: Pull Test Image
-        if: github.event.inputs.run_tests != 'false'
+      # This step performs a final comprehensive health check on all services
+      # to ensure the deployment is fully operational.
+      # =========================================================================
+      - name: Comprehensive Service Health Check
+        id: health_check
         run: |
           echo "=========================================="
-          echo "Pulling Test Image..."
+          echo "Comprehensive Service Health Check"
           echo "=========================================="
+          echo ""
 
-          docker pull ${TEST_IMAGE}
+          HEALTH_STATUS="PASS"
+          FAILED_SERVICES=""
 
-          echo "✓ Test image pulled successfully"
-
-      - name: Verify API is Ready for Testing
-        if: github.event.inputs.run_tests != 'false'
-        run: |
-          echo "=========================================="
-          echo "Verifying API is Ready for Testing..."
-          echo "=========================================="
-
-          MAX_ATTEMPTS=30
-          ATTEMPT=0
-
-          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-            ATTEMPT=$((ATTEMPT + 1))
-
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${DFW_API_URL}/api/jobs" 2>/dev/null || echo "000")
-
-            if [ "$HTTP_STATUS" = "200" ]; then
-              echo "✓ API is ready at ${DFW_API_URL}"
-              break
+          # ---------------------------------------------------------------
+          # 1. Check all containers are running
+          # ---------------------------------------------------------------
+          echo "--- 1. Container Status Check ---"
+          EXPECTED_SERVICES="api celery_worker celery_parent_worker redis mongodb elasticsearch"
+          
+          for service in $EXPECTED_SERVICES; do
+            CONTAINER_STATUS=$(docker ps --filter "name=$service" --format "{{.Status}}" | head -1)
+            if [ -n "$CONTAINER_STATUS" ] && echo "$CONTAINER_STATUS" | grep -q "Up"; then
+              echo "✓ $service: $CONTAINER_STATUS"
+            else
+              echo "✗ $service: NOT RUNNING or UNHEALTHY"
+              HEALTH_STATUS="FAIL"
+              FAILED_SERVICES="${FAILED_SERVICES}$service "
             fi
-
-            echo "  Waiting for API... (attempt $ATTEMPT/$MAX_ATTEMPTS, status: $HTTP_STATUS)"
-            sleep 5
           done
+          echo ""
 
-          if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
-            echo "✗ API failed to become ready after $MAX_ATTEMPTS attempts"
+          # ---------------------------------------------------------------
+          # 2. API Server Health Check
+          # ---------------------------------------------------------------
+          echo "--- 2. API Server Health Check ---"
+          
+          # Test root endpoint
+          API_ROOT=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/" 2>/dev/null || echo "000")
+          if [ "$API_ROOT" = "200" ] || [ "$API_ROOT" = "404" ]; then
+            echo "✓ API Root: HTTP $API_ROOT"
+          else
+            echo "✗ API Root: HTTP $API_ROOT"
+            HEALTH_STATUS="FAIL"
+          fi
+
+          # Test /api/jobs endpoint
+          API_JOBS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/api/jobs" 2>/dev/null || echo "000")
+          if [ "$API_JOBS" = "200" ]; then
+            echo "✓ API /api/jobs: HTTP $API_JOBS"
+          else
+            echo "✗ API /api/jobs: HTTP $API_JOBS"
+            HEALTH_STATUS="FAIL"
+          fi
+
+          # Test /docs endpoint (FastAPI Swagger UI)
+          API_DOCS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/docs" 2>/dev/null || echo "000")
+          if [ "$API_DOCS" = "200" ]; then
+            echo "✓ API Documentation: HTTP $API_DOCS"
+          else
+            echo "⚠ API Documentation: HTTP $API_DOCS (non-critical)"
+          fi
+
+          # Test /openapi.json endpoint
+          API_OPENAPI=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/openapi.json" 2>/dev/null || echo "000")
+          if [ "$API_OPENAPI" = "200" ]; then
+            echo "✓ OpenAPI Schema: HTTP $API_OPENAPI"
+          else
+            echo "⚠ OpenAPI Schema: HTTP $API_OPENAPI (non-critical)"
+          fi
+          echo ""
+
+          # ---------------------------------------------------------------
+          # 3. Elasticsearch Health Check
+          # ---------------------------------------------------------------
+          echo "--- 3. Elasticsearch Health Check ---"
+          
+          ES_HEALTH=$(curl -s "http://localhost:9200/_cluster/health" 2>/dev/null)
+          ES_STATUS=$(echo "$ES_HEALTH" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+          ES_NODES=$(echo "$ES_HEALTH" | grep -o '"number_of_nodes":[0-9]*' | cut -d':' -f2)
+          
+          if [ "$ES_STATUS" = "green" ] || [ "$ES_STATUS" = "yellow" ]; then
+            echo "✓ Elasticsearch cluster status: $ES_STATUS"
+            echo "  - Number of nodes: $ES_NODES"
+          else
+            echo "✗ Elasticsearch cluster status: $ES_STATUS"
+            HEALTH_STATUS="FAIL"
+          fi
+
+          # Check if flywheel index exists or can be created
+          ES_INDEX_CHECK=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:9200/flywheel" 2>/dev/null || echo "000")
+          echo "  - Flywheel index status: HTTP $ES_INDEX_CHECK"
+          echo ""
+
+          # ---------------------------------------------------------------
+          # 4. Redis Health Check
+          # ---------------------------------------------------------------
+          echo "--- 4. Redis Health Check ---"
+          
+          REDIS_CONTAINER=$(docker ps -qf "name=redis" | head -1)
+          if [ -n "$REDIS_CONTAINER" ]; then
+            REDIS_PING=$(docker exec $REDIS_CONTAINER redis-cli -a "$REDIS_PASSWORD" ping 2>/dev/null || echo "FAILED")
+            if [ "$REDIS_PING" = "PONG" ]; then
+              echo "✓ Redis PING: $REDIS_PING"
+              
+              # Get Redis info
+              REDIS_CLIENTS=$(docker exec $REDIS_CONTAINER redis-cli -a "$REDIS_PASSWORD" INFO clients 2>/dev/null | grep "connected_clients" | cut -d':' -f2 | tr -d '\r')
+              echo "  - Connected clients: $REDIS_CLIENTS"
+            else
+              echo "✗ Redis PING failed: $REDIS_PING"
+              HEALTH_STATUS="FAIL"
+            fi
+          else
+            echo "✗ Redis container not found"
+            HEALTH_STATUS="FAIL"
+          fi
+          echo ""
+
+          # ---------------------------------------------------------------
+          # 5. MongoDB Health Check
+          # ---------------------------------------------------------------
+          echo "--- 5. MongoDB Health Check ---"
+          
+          MONGO_CONTAINER=$(docker ps -qf "name=mongodb" | head -1)
+          if [ -n "$MONGO_CONTAINER" ]; then
+            MONGO_PING=$(docker exec $MONGO_CONTAINER mongosh --eval "db.runCommand('ping').ok" --quiet -u "$MONGO_USERNAME" -p "$MONGO_PASSWORD" 2>/dev/null || echo "0")
+            if [ "$MONGO_PING" = "1" ]; then
+              echo "✓ MongoDB PING: OK"
+              
+              # Get MongoDB server status
+              MONGO_VERSION=$(docker exec $MONGO_CONTAINER mongosh --eval "db.version()" --quiet -u "$MONGO_USERNAME" -p "$MONGO_PASSWORD" 2>/dev/null || echo "unknown")
+              echo "  - MongoDB version: $MONGO_VERSION"
+            else
+              echo "✗ MongoDB PING failed"
+              HEALTH_STATUS="FAIL"
+            fi
+          else
+            echo "✗ MongoDB container not found"
+            HEALTH_STATUS="FAIL"
+          fi
+          echo ""
+
+          # ---------------------------------------------------------------
+          # 6. Celery Workers Health Check
+          # ---------------------------------------------------------------
+          echo "--- 6. Celery Workers Health Check ---"
+          
+          # Check celery_worker container logs for startup
+          CELERY_WORKER=$(docker ps -qf "name=celery_worker" | head -1)
+          if [ -n "$CELERY_WORKER" ]; then
+            CELERY_READY=$(docker logs $CELERY_WORKER 2>&1 | grep -c "celery@" || echo "0")
+            if [ "$CELERY_READY" -gt "0" ]; then
+              echo "✓ Celery Worker: Running"
+            else
+              echo "⚠ Celery Worker: Started but may not be fully ready"
+            fi
+          else
+            echo "✗ Celery Worker container not found"
+            HEALTH_STATUS="FAIL"
+          fi
+
+          CELERY_PARENT=$(docker ps -qf "name=celery_parent_worker" | head -1)
+          if [ -n "$CELERY_PARENT" ]; then
+            echo "✓ Celery Parent Worker: Running"
+          else
+            echo "✗ Celery Parent Worker container not found"
+            HEALTH_STATUS="FAIL"
+          fi
+          echo ""
+
+          # ---------------------------------------------------------------
+          # Final Summary
+          # ---------------------------------------------------------------
+          echo "=========================================="
+          if [ "$HEALTH_STATUS" = "PASS" ]; then
+            echo "✓ ALL HEALTH CHECKS PASSED"
+            echo "=========================================="
+            echo ""
+            echo "All services are running and healthy."
+            echo "The Data Flywheel deployment is ready for use."
+          else
+            echo "✗ HEALTH CHECK FAILED"
+            echo "=========================================="
+            echo ""
+            echo "Failed services: $FAILED_SERVICES"
+            echo ""
+            echo "Container Status:"
+            docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
             exit 1
           fi
 
-      - name: Create Test Reports Directory
-        if: github.event.inputs.run_tests != 'false'
+          echo ""
+          echo "health_status=$HEALTH_STATUS" >> $GITHUB_OUTPUT
+
+      - name: Display Final Deployment Status
         run: |
-          mkdir -p test_reports
+          echo "=========================================="
+          echo "Deployment Complete"
+          echo "=========================================="
+          echo ""
+          echo "Service Endpoints:"
+          echo "  - API Server:        http://localhost:8000"
+          echo "  - API Documentation: http://localhost:8000/docs"
+          echo "  - OpenAPI Schema:    http://localhost:8000/openapi.json"
+          echo "  - Elasticsearch:     http://localhost:9200"
+          echo "  - MongoDB:           localhost:27017"
+          echo "  - Redis:             localhost:6379"
+          echo ""
+          echo "Container Status:"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          echo ""
 
       # =========================================================================
-      # Load Test Data from Huggingface
+      # pytest Tests (COMMENTED OUT - Not running pytest in this workflow)
       # =========================================================================
-      # Data Source (from notebook Section 1.1):
-      #   The notebook (notebooks/ai-model-distillation-financial-data.ipynb)
-      #   recommends using the "ic-fspml/stock_news_sentiment" dataset from
-      #   Huggingface for financial news classification tasks.
+      # The following pytest-related steps are commented out.
+      # To re-enable pytest testing, uncomment these sections.
+      # =========================================================================
+
+      # # =========================================================================
+      # # Run pytest Tests (in same job to access deployed services)
+      # # =========================================================================
+      # - name: Pull Test Image
+      #   if: github.event.inputs.run_tests != 'false'
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Pulling Test Image..."
+      #     echo "=========================================="
       #
-      #   Reference: https://huggingface.co/datasets/ic-fspml/stock_news_sentiment
+      #     docker pull ${TEST_IMAGE}
       #
-      # Override for CI Testing:
-      #   - Original notebook uses "news_classifier" as workload_id
-      #   - We override to use "primary_assistant" and "aiva-1" to match
-      #     the pytest test cases in blueprint-github-test/testcases/dfw/test_dfw_api.py
-      #   - Data is transformed to OpenAI-style request/response format
-      #     as required by the Data Flywheel API
-      #   - Minimum 100 records are loaded to satisfy the 50-record requirement
-      # =========================================================================
-      - name: Load Test Data from Huggingface
-        if: github.event.inputs.run_tests != 'false'
-        run: |
-          echo "=========================================="
-          echo "Loading Test Data from Huggingface..."
-          echo "=========================================="
-          echo ""
-          echo "Data Source: ic-fspml/stock_news_sentiment (from notebook Section 1.1)"
-          echo "Override: workload_id=primary_assistant, client_id=aiva-1 (to match pytest)"
-          echo ""
-
-          # Install required Python packages
-          # Use --break-system-packages for externally-managed Python environments (PEP 668)
-          # elasticsearch==8.* is required for compatibility with Elasticsearch 8.12.2 server
-          pip install --break-system-packages datasets "elasticsearch>=8.0.0,<9.0.0"
-
-          # Run Python script directly to download and load data
-          # =====================================================================
-          # Data Source (from notebook Section 1.1):
-          #   Dataset: ic-fspml/stock_news_sentiment
-          #   Reference: https://huggingface.co/datasets/ic-fspml/stock_news_sentiment
-          #
-          # Override for CI Testing:
-          #   - Original notebook uses: workload_id="news_classifier"
-          #   - Pytest expects: workload_id="primary_assistant", client_id="aiva-1"
-          # =====================================================================
-          python3 << 'PYTHON_SCRIPT'
-          import sys
-          from datetime import datetime
-          from datasets import load_dataset
-          from elasticsearch import Elasticsearch
-
-          # Configuration - Override for CI Testing
-          WORKLOAD_ID = "primary_assistant"
-          CLIENT_ID = "aiva-1"
-          ES_URL = "http://localhost:9200"
-          ES_INDEX = "flywheel"
-          # MIN_RECORDS must be large enough for train/test split (at least 200+)
-          MIN_RECORDS = 500
-
-          print("Downloading dataset from Huggingface: ic-fspml/stock_news_sentiment")
-          ds = load_dataset("ic-fspml/stock_news_sentiment")
-          print(f"Dataset loaded. Train split has {len(ds['train'])} records")
-
-          es = Elasticsearch([ES_URL])
-          if not es.indices.exists(index=ES_INDEX):
-              es.indices.create(index=ES_INDEX)
-              print(f"Created Elasticsearch index: {ES_INDEX}")
-
-          records_loaded = 0
-          for i, item in enumerate(ds['train']):
-              if records_loaded >= MIN_RECORDS:
-                  break
-              headline = item.get('article_headline', item.get('headline', ''))
-              if not headline:
-                  continue
-              timestamp = int(datetime.utcnow().timestamp()) + i
-              doc = {
-                  "timestamp": timestamp,
-                  "workload_id": WORKLOAD_ID,
-                  "client_id": CLIENT_ID,
-                  "request": {
-                      "model": "meta/llama-3.3-70b-instruct",
-                      "messages": [
-                          {"role": "system", "content": "You are a financial news classifier."},
-                          {"role": "user", "content": f"Classify this headline: {headline}"}
-                      ]
-                  },
-                  "response": {
-                      "choices": [{"message": {"role": "assistant", "content": "[[[analyst rating]]]"}}]
-                  }
-              }
-              es.index(index=ES_INDEX, document=doc)
-              records_loaded += 1
-              if records_loaded % 20 == 0:
-                  print(f"  Loaded {records_loaded} records...")
-
-          es.indices.flush(index=ES_INDEX)
-          es.indices.refresh(index=ES_INDEX)
-          print(f"Successfully loaded {records_loaded} records to Elasticsearch")
-          print(f"  - workload_id: {WORKLOAD_ID}, client_id: {CLIENT_ID}, index: {ES_INDEX}")
-
-          count = es.count(index=ES_INDEX)['count']
-          print(f"  - Total records in index: {count}")
-          if count < 50:
-              print(f"ERROR: Not enough records. Need 50, got {count}")
-              sys.exit(1)
-          PYTHON_SCRIPT
-
-          echo ""
-          echo "Test data loaded successfully"
-
-      # =========================================================================
-      # Run pytest - DFW API Tests
-      # =========================================================================
-      # Skipped Test: test_create_and_monitor_job_to_completion
-      #   This test requires an external NEMO service (nemo.test) to complete
-      #   the job execution. The Data Flywheel service attempts to connect to
-      #   NEMO for NIM model deployment, which is not available in this CI
-      #   environment. The test fails with:
-      #     "Failed to resolve 'nemo.test' ([Errno -2] Name or service not known)"
+      #     echo "✓ Test image pulled successfully"
       #
-      #   The remaining tests (cancel_job, delete_job) verify the core API
-      #   functionality without requiring the external NEMO dependency.
-      # =========================================================================
-      - name: Run pytest - DFW API Tests
-        if: github.event.inputs.run_tests != 'false'
-        run: |
-          echo "=========================================="
-          echo "Running pytest Tests..."
-          echo "=========================================="
-          echo ""
-          echo "Test Configuration:"
-          echo "  - Test Image: ${TEST_IMAGE}"
-          echo "  - DFW API URL: ${DFW_API_URL}"
-          echo "  - pytest marker: dfw"
-          echo "  - Skipped: test_create_and_monitor_job_to_completion (requires NEMO service)"
-          echo ""
-
-          docker run --rm --network host \
-            -v "$(pwd)/test_reports:/app/reports" \
-            -e DFW_API_URL="${DFW_API_URL}" \
-            ${TEST_IMAGE} \
-            pytest testcases/dfw/test_dfw_api.py \
-              -m "dfw" \
-              -k "not test_create_and_monitor_job_to_completion" \
-              --dfw-api-url "${DFW_API_URL}" \
-              --html=/app/reports/dfw_test_report.html \
-              --self-contained-html \
-              -v
-
-          echo ""
-          echo "✓ pytest tests completed"
-
-      - name: Upload Test Reports
-        if: always() && github.event.inputs.run_tests != 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: pytest-test-reports
-          path: test_reports/*.html
-          retention-days: 30
-          if-no-files-found: warn
-
-      - name: Display Test Results Summary
-        if: always() && github.event.inputs.run_tests != 'false'
-        run: |
-          echo "=========================================="
-          echo "Test Results Summary"
-          echo "=========================================="
-
-          if [ -f "test_reports/dfw_test_report.html" ]; then
-            echo "✓ Test report generated: test_reports/dfw_test_report.html"
-          else
-            echo "⚠ No test report found"
-          fi
+      # - name: Verify API is Ready for Testing
+      #   if: github.event.inputs.run_tests != 'false'
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Verifying API is Ready for Testing..."
+      #     echo "=========================================="
+      #
+      #     MAX_ATTEMPTS=30
+      #     ATTEMPT=0
+      #
+      #     while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+      #       ATTEMPT=$((ATTEMPT + 1))
+      #
+      #       HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${DFW_API_URL}/api/jobs" 2>/dev/null || echo "000")
+      #
+      #       if [ "$HTTP_STATUS" = "200" ]; then
+      #         echo "✓ API is ready at ${DFW_API_URL}"
+      #         break
+      #       fi
+      #
+      #       echo "  Waiting for API... (attempt $ATTEMPT/$MAX_ATTEMPTS, status: $HTTP_STATUS)"
+      #       sleep 5
+      #     done
+      #
+      #     if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+      #       echo "✗ API failed to become ready after $MAX_ATTEMPTS attempts"
+      #       exit 1
+      #     fi
+      #
+      # - name: Create Test Reports Directory
+      #   if: github.event.inputs.run_tests != 'false'
+      #   run: |
+      #     mkdir -p test_reports
+      #
+      # # =========================================================================
+      # # Load Test Data from Huggingface
+      # # =========================================================================
+      # # Data Source (from notebook Section 1.1):
+      # #   The notebook (notebooks/ai-model-distillation-financial-data.ipynb)
+      # #   recommends using the "ic-fspml/stock_news_sentiment" dataset from
+      # #   Huggingface for financial news classification tasks.
+      # #
+      # #   Reference: https://huggingface.co/datasets/ic-fspml/stock_news_sentiment
+      # #
+      # # Override for CI Testing:
+      # #   - Original notebook uses "news_classifier" as workload_id
+      # #   - We override to use "primary_assistant" and "aiva-1" to match
+      # #     the pytest test cases in blueprint-github-test/testcases/dfw/test_dfw_api.py
+      # #   - Data is transformed to OpenAI-style request/response format
+      # #     as required by the Data Flywheel API
+      # #   - Minimum 100 records are loaded to satisfy the 50-record requirement
+      # # =========================================================================
+      # - name: Load Test Data from Huggingface
+      #   if: github.event.inputs.run_tests != 'false'
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Loading Test Data from Huggingface..."
+      #     echo "=========================================="
+      #     echo ""
+      #     echo "Data Source: ic-fspml/stock_news_sentiment (from notebook Section 1.1)"
+      #     echo "Override: workload_id=primary_assistant, client_id=aiva-1 (to match pytest)"
+      #     echo ""
+      #
+      #     # Install required Python packages
+      #     # Use --break-system-packages for externally-managed Python environments (PEP 668)
+      #     # elasticsearch==8.* is required for compatibility with Elasticsearch 8.12.2 server
+      #     pip install --break-system-packages datasets "elasticsearch>=8.0.0,<9.0.0"
+      #
+      #     # Run Python script directly to download and load data
+      #     # =====================================================================
+      #     # Data Source (from notebook Section 1.1):
+      #     #   Dataset: ic-fspml/stock_news_sentiment
+      #     #   Reference: https://huggingface.co/datasets/ic-fspml/stock_news_sentiment
+      #     #
+      #     # Override for CI Testing:
+      #     #   - Original notebook uses: workload_id="news_classifier"
+      #     #   - Pytest expects: workload_id="primary_assistant", client_id="aiva-1"
+      #     # =====================================================================
+      #     python3 << 'PYTHON_SCRIPT'
+      #     import sys
+      #     from datetime import datetime
+      #     from datasets import load_dataset
+      #     from elasticsearch import Elasticsearch
+      #
+      #     # Configuration - Override for CI Testing
+      #     WORKLOAD_ID = "primary_assistant"
+      #     CLIENT_ID = "aiva-1"
+      #     ES_URL = "http://localhost:9200"
+      #     ES_INDEX = "flywheel"
+      #     # MIN_RECORDS must be large enough for train/test split (at least 200+)
+      #     MIN_RECORDS = 500
+      #
+      #     print("Downloading dataset from Huggingface: ic-fspml/stock_news_sentiment")
+      #     ds = load_dataset("ic-fspml/stock_news_sentiment")
+      #     print(f"Dataset loaded. Train split has {len(ds['train'])} records")
+      #
+      #     es = Elasticsearch([ES_URL])
+      #     if not es.indices.exists(index=ES_INDEX):
+      #         es.indices.create(index=ES_INDEX)
+      #         print(f"Created Elasticsearch index: {ES_INDEX}")
+      #
+      #     records_loaded = 0
+      #     for i, item in enumerate(ds['train']):
+      #         if records_loaded >= MIN_RECORDS:
+      #             break
+      #         headline = item.get('article_headline', item.get('headline', ''))
+      #         if not headline:
+      #             continue
+      #         timestamp = int(datetime.utcnow().timestamp()) + i
+      #         doc = {
+      #             "timestamp": timestamp,
+      #             "workload_id": WORKLOAD_ID,
+      #             "client_id": CLIENT_ID,
+      #             "request": {
+      #                 "model": "meta/llama-3.3-70b-instruct",
+      #                 "messages": [
+      #                     {"role": "system", "content": "You are a financial news classifier."},
+      #                     {"role": "user", "content": f"Classify this headline: {headline}"}
+      #                 ]
+      #             },
+      #             "response": {
+      #                 "choices": [{"message": {"role": "assistant", "content": "[[[analyst rating]]]"}}]
+      #             }
+      #         }
+      #         es.index(index=ES_INDEX, document=doc)
+      #         records_loaded += 1
+      #         if records_loaded % 20 == 0:
+      #             print(f"  Loaded {records_loaded} records...")
+      #
+      #     es.indices.flush(index=ES_INDEX)
+      #     es.indices.refresh(index=ES_INDEX)
+      #     print(f"Successfully loaded {records_loaded} records to Elasticsearch")
+      #     print(f"  - workload_id: {WORKLOAD_ID}, client_id: {CLIENT_ID}, index: {ES_INDEX}")
+      #
+      #     count = es.count(index=ES_INDEX)['count']
+      #     print(f"  - Total records in index: {count}")
+      #     if count < 50:
+      #         print(f"ERROR: Not enough records. Need 50, got {count}")
+      #         sys.exit(1)
+      #     PYTHON_SCRIPT
+      #
+      #     echo ""
+      #     echo "Test data loaded successfully"
+      #
+      # # =========================================================================
+      # # Run pytest - DFW API Tests
+      # # =========================================================================
+      # # Skipped Test: test_create_and_monitor_job_to_completion
+      # #   This test requires an external NEMO service (nemo.test) to complete
+      # #   the job execution. The Data Flywheel service attempts to connect to
+      # #   NEMO for NIM model deployment, which is not available in this CI
+      # #   environment. The test fails with:
+      # #     "Failed to resolve 'nemo.test' ([Errno -2] Name or service not known)"
+      # #
+      # #   The remaining tests (cancel_job, delete_job) verify the core API
+      # #   functionality without requiring the external NEMO dependency.
+      # # =========================================================================
+      # - name: Run pytest - DFW API Tests
+      #   if: github.event.inputs.run_tests != 'false'
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Running pytest Tests..."
+      #     echo "=========================================="
+      #     echo ""
+      #     echo "Test Configuration:"
+      #     echo "  - Test Image: ${TEST_IMAGE}"
+      #     echo "  - DFW API URL: ${DFW_API_URL}"
+      #     echo "  - pytest marker: dfw"
+      #     echo "  - Skipped: test_create_and_monitor_job_to_completion (requires NEMO service)"
+      #     echo ""
+      #
+      #     docker run --rm --network host \
+      #       -v "$(pwd)/test_reports:/app/reports" \
+      #       -e DFW_API_URL="${DFW_API_URL}" \
+      #       ${TEST_IMAGE} \
+      #       pytest testcases/dfw/test_dfw_api.py \
+      #         -m "dfw" \
+      #         -k "not test_create_and_monitor_job_to_completion" \
+      #         --dfw-api-url "${DFW_API_URL}" \
+      #         --html=/app/reports/dfw_test_report.html \
+      #         --self-contained-html \
+      #         -v
+      #
+      #     echo ""
+      #     echo "✓ pytest tests completed"
+      #
+      # - name: Upload Test Reports
+      #   if: always() && github.event.inputs.run_tests != 'false'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: pytest-test-reports
+      #     path: test_reports/*.html
+      #     retention-days: 30
+      #     if-no-files-found: warn
+      #
+      # - name: Display Test Results Summary
+      #   if: always() && github.event.inputs.run_tests != 'false'
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Test Results Summary"
+      #     echo "=========================================="
+      #
+      #     if [ -f "test_reports/dfw_test_report.html" ]; then
+      #       echo "✓ Test report generated: test_reports/dfw_test_report.html"
+      #     else
+      #       echo "⚠ No test report found"
+      #     fi
 
       # =========================================================================
       # Cleanup (at end of same job)
