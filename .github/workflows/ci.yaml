@@ -80,22 +80,10 @@ on:
       - '.github/workflows/ci.yaml'
 
   workflow_dispatch:
-    inputs:
-      run_tests:
-        description: 'Run pytest tests after deployment'
-        required: false
-        default: true
-        type: boolean
-      enable_mlflow:
-        description: 'Enable MLflow for experiment tracking'
-        required: false
-        default: false
-        type: boolean
-      skip_cleanup:
-        description: 'Skip cleanup after tests (keep services running)'
-        required: false
-        default: false
-        type: boolean
+    # No inputs required - workflow runs with default configuration:
+    # - MLflow: always enabled
+    # - pytest: commented out (not running)
+    # - Cleanup: disabled (services kept running for inspection)
 
 env:
   # Required secrets
@@ -405,12 +393,10 @@ jobs:
           TAG=${TAG}
           EOF
 
-          # Add MLflow profile if enabled
-          if [ "${{ inputs.enable_mlflow }}" = "true" ]; then
-            echo "COMPOSE_PROFILES=mlflow" >> deploy/.env
-          fi
+          # Always enable MLflow for experiment tracking
+          echo "COMPOSE_PROFILES=mlflow" >> deploy/.env
 
-          echo "✓ Environment file created"
+          echo "✓ Environment file created (with MLflow enabled)"
 
       - name: Login to NVIDIA Container Registry
         run: |
@@ -668,7 +654,7 @@ jobs:
           # 1. Check all containers are running
           # ---------------------------------------------------------------
           echo "--- 1. Container Status Check ---"
-          EXPECTED_SERVICES="api celery_worker celery_parent_worker redis mongodb elasticsearch"
+          EXPECTED_SERVICES="api celery_worker celery_parent_worker redis mongodb elasticsearch mlflow"
           
           for service in $EXPECTED_SERVICES; do
             CONTAINER_STATUS=$(docker ps --filter "name=$service" --format "{{.Status}}" | head -1)
@@ -836,6 +822,44 @@ jobs:
           echo ""
 
           # ---------------------------------------------------------------
+          # 7. MLflow Health Check
+          # ---------------------------------------------------------------
+          echo "--- 7. MLflow Health Check ---"
+          
+          # Check MLflow container is running
+          MLFLOW_CONTAINER=$(docker ps -qf "name=mlflow" 2>/dev/null | head -1)
+          if [ -n "$MLFLOW_CONTAINER" ]; then
+            CONTAINER_STATUS=$(docker inspect --format='{{.State.Status}}' "$MLFLOW_CONTAINER" 2>/dev/null || echo "unknown")
+            if [ "$CONTAINER_STATUS" = "running" ]; then
+              echo "✓ MLflow Container: Running"
+              
+              # Check MLflow HTTP endpoint
+              MLFLOW_HTTP=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:5000/" 2>/dev/null || echo "000")
+              if [ "$MLFLOW_HTTP" = "200" ]; then
+                echo "✓ MLflow UI: HTTP $MLFLOW_HTTP (http://localhost:5000)"
+              else
+                echo "✗ MLflow UI: HTTP $MLFLOW_HTTP"
+                HEALTH_STATUS="FAIL"
+              fi
+              
+              # Check MLflow API endpoint
+              MLFLOW_API=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:5000/api/2.0/mlflow/experiments/search" 2>/dev/null || echo "000")
+              if [ "$MLFLOW_API" = "200" ]; then
+                echo "✓ MLflow API: HTTP $MLFLOW_API"
+              else
+                echo "⚠ MLflow API: HTTP $MLFLOW_API (non-critical)"
+              fi
+            else
+              echo "✗ MLflow Container: Status=$CONTAINER_STATUS"
+              HEALTH_STATUS="FAIL"
+            fi
+          else
+            echo "✗ MLflow container not found"
+            HEALTH_STATUS="FAIL"
+          fi
+          echo ""
+
+          # ---------------------------------------------------------------
           # Final Summary
           # ---------------------------------------------------------------
           echo "=========================================="
@@ -872,6 +896,7 @@ jobs:
           echo "  - Elasticsearch:     http://localhost:9200"
           echo "  - MongoDB:           localhost:27017"
           echo "  - Redis:             localhost:6379"
+          echo "  - MLflow UI:         http://localhost:5000"
           echo ""
           echo "Container Status:"
           docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
@@ -1107,24 +1132,27 @@ jobs:
       #     fi
 
       # =========================================================================
-      # Cleanup (at end of same job)
+      # Cleanup (DISABLED - services kept running for inspection)
       # =========================================================================
-      - name: Cleanup Services
-        if: always() && github.event.inputs.skip_cleanup != 'true'
-        run: |
-          echo "=========================================="
-          echo "Cleaning up deployment..."
-          echo "=========================================="
-
-          cd deploy
-
-          # Stop and remove containers, networks, volumes
-          docker compose -f docker-compose.yaml down --volumes --remove-orphans || true
-
-          # Clean up any dangling resources
-          docker system prune -f || true
-
-          echo "✓ Cleanup complete"
+      # Cleanup is disabled to allow post-deployment inspection of services.
+      # To re-enable cleanup, uncomment the following step.
+      # =========================================================================
+      # - name: Cleanup Services
+      #   if: always()
+      #   run: |
+      #     echo "=========================================="
+      #     echo "Cleaning up deployment..."
+      #     echo "=========================================="
+      #
+      #     cd deploy
+      #
+      #     # Stop and remove containers, networks, volumes
+      #     docker compose -f docker-compose.yaml down --volumes --remove-orphans || true
+      #
+      #     # Clean up any dangling resources
+      #     docker system prune -f || true
+      #
+      #     echo "✓ Cleanup complete"
 
       - name: Collect Logs on Failure
         if: failure()
