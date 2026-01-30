@@ -110,8 +110,8 @@ jobs:
   # ===========================================================================
   preflight:
     name: Pre-flight Checks
-    runs-on: arc-runner-set-oke-org-poc-4-gpu
-    # runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    # runs-on: arc-runner-set-oke-org-poc-4-gpu
+    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
     outputs:
       checks_passed: ${{ steps.final_check.outputs.passed }}
     steps:
@@ -361,8 +361,8 @@ jobs:
   # ===========================================================================
   deploy-and-test:
     name: Deploy and Test
-    runs-on: arc-runner-set-oke-org-poc-4-gpu
-    # runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    # runs-on: arc-runner-set-oke-org-poc-4-gpu
+    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
     needs: preflight
     if: needs.preflight.outputs.checks_passed == 'true'
     steps:
