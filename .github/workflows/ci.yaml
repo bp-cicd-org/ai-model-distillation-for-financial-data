@@ -122,8 +122,8 @@ jobs:
   # ===========================================================================
   preflight:
     name: Pre-flight Checks
-    # runs-on: arc-runner-set-oke-org-poc-4-gpu
-    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    runs-on: arc-runner-set-oke-org-poc-4-gpu
+    # runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
     outputs:
       checks_passed: ${{ steps.final_check.outputs.passed }}
     steps:
@@ -373,8 +373,8 @@ jobs:
   # ===========================================================================
   deploy-and-test:
     name: Deploy and Test
-    # runs-on: arc-runner-set-oke-org-poc-4-gpu
-    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    runs-on: arc-runner-set-oke-org-poc-4-gpu
+    # runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
     needs: preflight
     if: needs.preflight.outputs.checks_passed == 'true'
     steps:
@@ -605,6 +605,49 @@ jobs:
           echo ""
 
       # =========================================================================
+      # Initialize Elasticsearch Index
+      # =========================================================================
+      # Create the flywheel index to verify Elasticsearch is properly configured
+      # and ready to receive data. This is a minimal setup for deployment validation.
+      # =========================================================================
+      - name: Initialize Elasticsearch Index
+        run: |
+          echo "=========================================="
+          echo "Initializing Elasticsearch Index..."
+          echo "=========================================="
+
+          # Create flywheel index with basic settings
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PUT "http://localhost:9200/flywheel" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0
+              }
+            }' 2>/dev/null || echo "000")
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✓ Flywheel index created successfully"
+          elif [ "$HTTP_STATUS" = "400" ]; then
+            # Index might already exist
+            echo "- Flywheel index already exists"
+          else
+            echo "✗ Failed to create flywheel index: HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          # Verify index exists
+          VERIFY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:9200/flywheel" 2>/dev/null || echo "000")
+          if [ "$VERIFY_STATUS" = "200" ]; then
+            echo "✓ Flywheel index verified"
+          else
+            echo "✗ Flywheel index verification failed: HTTP $VERIFY_STATUS"
+            exit 1
+          fi
+
+          echo ""
+
+      # =========================================================================
       # Comprehensive Service Health Check
       # =========================================================================
       # This step performs a final comprehensive health check on all services
@@ -689,15 +732,16 @@ jobs:
             HEALTH_STATUS="FAIL"
           fi
 
-          # Check if flywheel index exists
-          # Note: 404 is expected when no data has been loaded yet (index created on first data insert)
+          # Check if flywheel index exists (should be created by Initialize Elasticsearch Index step)
           ES_INDEX_CHECK=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:9200/flywheel" 2>/dev/null || echo "000")
           if [ "$ES_INDEX_CHECK" = "200" ]; then
             echo "✓ Flywheel index: exists"
-          elif [ "$ES_INDEX_CHECK" = "404" ]; then
-            echo "- Flywheel index: not created yet (expected - no data loaded)"
+            # Get index document count
+            DOC_COUNT=$(curl -s "http://localhost:9200/flywheel/_count" 2>/dev/null | grep -o '"count":[0-9]*' | cut -d':' -f2 || echo "0")
+            echo "  - Document count: $DOC_COUNT"
           else
-            echo "✗ Flywheel index check failed: HTTP $ES_INDEX_CHECK"
+            echo "✗ Flywheel index: not found (HTTP $ES_INDEX_CHECK)"
+            HEALTH_STATUS="FAIL"
           fi
           echo ""
 
