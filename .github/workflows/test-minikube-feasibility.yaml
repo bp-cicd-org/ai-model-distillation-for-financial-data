@@ -1,0 +1,193 @@
+# Prove whether minikube can run inside the current ARC runner (K8s pod)
+name: Test Minikube Feasibility
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-minikube:
+    name: Can we run minikube here?
+    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    steps:
+      - name: 1. Environment Detection
+        run: |
+          echo "=========================================="
+          echo "Environment Detection"
+          echo "=========================================="
+
+          echo "--- Am I in a container? ---"
+          if [ -f /.dockerenv ]; then
+            echo "YES - /.dockerenv exists (Docker container)"
+          elif [ -f /run/.containerenv ]; then
+            echo "YES - /run/.containerenv exists (Podman container)"
+          elif grep -q 'kubepods\|docker\|containerd' /proc/1/cgroup 2>/dev/null; then
+            echo "YES - cgroup indicates container environment"
+          else
+            echo "NO - appears to be bare metal/VM"
+          fi
+
+          echo ""
+          echo "--- PID 1 ---"
+          cat /proc/1/cmdline 2>/dev/null | tr '\0' ' ' || echo "Cannot read PID 1"
+
+          echo ""
+          echo "--- Hostname ---"
+          hostname
+
+          echo ""
+          echo "--- Kernel ---"
+          uname -a
+
+          echo ""
+          echo "--- User ---"
+          whoami
+          id
+
+          echo ""
+          echo "--- Filesystem root type ---"
+          df -T / | head -5
+
+          echo ""
+          echo "--- cgroup info ---"
+          cat /proc/1/cgroup 2>/dev/null | head -20 || echo "Cannot read cgroup"
+
+          echo ""
+          echo "--- Kubernetes indicators ---"
+          echo "KUBERNETES_SERVICE_HOST=${KUBERNETES_SERVICE_HOST:-not set}"
+          echo "KUBERNETES_SERVICE_PORT=${KUBERNETES_SERVICE_PORT:-not set}"
+          ls -la /var/run/secrets/kubernetes.io/ 2>/dev/null || echo "No K8s service account mount found"
+
+      - name: 2. Check Docker Availability
+        run: |
+          echo "=========================================="
+          echo "Docker Availability"
+          echo "=========================================="
+
+          echo "--- docker binary ---"
+          which docker 2>/dev/null && docker --version || echo "docker NOT found"
+
+          echo ""
+          echo "--- docker info ---"
+          docker info 2>&1 | head -30 || echo "docker info FAILED"
+
+          echo ""
+          echo "--- docker socket ---"
+          ls -la /var/run/docker.sock 2>/dev/null || echo "No docker socket"
+
+          echo ""
+          echo "--- Can we run a container? ---"
+          docker run --rm alpine echo "Hello from nested container" 2>&1 || echo "FAILED to run container"
+
+      - name: 3. Check GPU Access
+        run: |
+          echo "=========================================="
+          echo "GPU Access"
+          echo "=========================================="
+
+          echo "--- nvidia-smi (direct) ---"
+          nvidia-smi 2>&1 | head -20 || echo "nvidia-smi NOT available directly"
+
+          echo ""
+          echo "--- nvidia-smi (via docker) ---"
+          docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi 2>&1 | head -20 || echo "GPU via docker FAILED"
+
+          echo ""
+          echo "--- nvidia-ctk ---"
+          nvidia-ctk --version 2>&1 || echo "nvidia-ctk NOT found"
+
+      - name: 4. Check systemd (required by deploy-nmp.sh)
+        run: |
+          echo "=========================================="
+          echo "systemd Check"
+          echo "=========================================="
+
+          echo "--- systemctl ---"
+          systemctl --version 2>&1 || echo "systemctl NOT available"
+
+          echo ""
+          echo "--- PID 1 is systemd? ---"
+          ps -p 1 -o comm= 2>/dev/null || echo "Cannot check PID 1"
+
+      - name: 5. Try to Install minikube
+        run: |
+          echo "=========================================="
+          echo "Installing minikube"
+          echo "=========================================="
+
+          curl -LO https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64 2>&1
+          chmod +x minikube-linux-amd64
+          sudo mv minikube-linux-amd64 /usr/local/bin/minikube 2>/dev/null || mv minikube-linux-amd64 ./minikube
+
+          minikube version 2>&1 || ./minikube version 2>&1 || echo "minikube install FAILED"
+
+      - name: 6. Try to Start minikube (THE REAL TEST)
+        run: |
+          echo "=========================================="
+          echo "Attempting to start minikube..."
+          echo "=========================================="
+          echo ""
+          echo "This is expected to FAIL in a K8s pod."
+          echo ""
+
+          MINIKUBE_BIN="minikube"
+          command -v minikube >/dev/null 2>&1 || MINIKUBE_BIN="./minikube"
+
+          # Attempt 1: standard docker driver
+          echo "--- Attempt 1: minikube start --driver=docker ---"
+          timeout 120 $MINIKUBE_BIN start \
+            --driver=docker \
+            --container-runtime=docker \
+            --cpus=2 \
+            --memory=4096 \
+            --force \
+            2>&1 || echo ">>> ATTEMPT 1 FAILED (exit code: $?)"
+
+          echo ""
+          $MINIKUBE_BIN status 2>&1 || echo "minikube is NOT running"
+
+          echo ""
+          echo "--- Attempt 2: minikube start --driver=none (if docker failed) ---"
+          if ! $MINIKUBE_BIN status 2>/dev/null | grep -q "Running"; then
+            timeout 120 $MINIKUBE_BIN start \
+              --driver=none \
+              --force \
+              2>&1 || echo ">>> ATTEMPT 2 FAILED (exit code: $?)"
+          fi
+
+          echo ""
+          $MINIKUBE_BIN status 2>&1 || echo "minikube is NOT running"
+
+      - name: 7. Final Verdict
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "FINAL VERDICT"
+          echo "=========================================="
+
+          MINIKUBE_BIN="minikube"
+          command -v minikube >/dev/null 2>&1 || MINIKUBE_BIN="./minikube"
+
+          if $MINIKUBE_BIN status 2>/dev/null | grep -q "Running"; then
+            echo ""
+            echo "RESULT: minikube IS running"
+            echo "Notebook execution in CI may be feasible."
+            echo ""
+            $MINIKUBE_BIN status
+            kubectl get nodes 2>/dev/null || true
+          else
+            echo ""
+            echo "RESULT: minikube CANNOT run in this environment"
+            echo ""
+            echo "Implications:"
+            echo "  - Notebook (ai-model-distillation-financial-data.ipynb) CANNOT execute in CI"
+            echo "  - NeMo Microservices (deploy-nmp.sh) CANNOT be deployed"
+            echo "  - CI should be limited to: Docker Compose deploy + health check"
+            echo ""
+          fi
+
+      - name: 8. Cleanup
+        if: always()
+        run: |
+          MINIKUBE_BIN="minikube"
+          command -v minikube >/dev/null 2>&1 || MINIKUBE_BIN="./minikube"
+          $MINIKUBE_BIN delete 2>/dev/null || true
