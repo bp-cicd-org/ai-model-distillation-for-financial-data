@@ -353,9 +353,9 @@ jobs:
           echo "Disk:     $(df -BG / | awk 'NR==2 {print $4}') available"
           echo "Memory:   $(free -h | awk 'NR==2 {print $7}') available"
 
-          # --- [1/8] Docker ---
+          # --- [1/9] Docker ---
           echo ""
-          echo "--- [1/8] Docker ---"
+          echo "--- [1/9] Docker ---"
           if command -v docker &>/dev/null; then
             DOCKER_VER=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo "0")
             echo "Docker version: $DOCKER_VER"
@@ -371,9 +371,9 @@ jobs:
             FAILED=1
           fi
 
-          # --- [2/8] GPU Access ---
+          # --- [2/9] GPU Access ---
           echo ""
-          echo "--- [2/8] GPU Access (via Docker) ---"
+          echo "--- [2/9] GPU Access (via Docker) ---"
           GPU_INFO=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 \
             nvidia-smi --query-gpu=index,name,memory.total,driver_version \
             --format=csv,noheader 2>&1) || true
@@ -387,9 +387,9 @@ jobs:
             FAILED=1
           fi
 
-          # --- [3/8] nvidia-ctk ---
+          # --- [3/9] nvidia-ctk ---
           echo ""
-          echo "--- [3/8] NVIDIA Container Toolkit (nvidia-ctk) ---"
+          echo "--- [3/9] NVIDIA Container Toolkit (nvidia-ctk) ---"
           if command -v nvidia-ctk &>/dev/null; then
             echo "PASS: nvidia-ctk $(nvidia-ctk --version 2>&1 | head -1)"
           else
@@ -409,9 +409,9 @@ jobs:
             fi
           fi
 
-          # --- [4/8] Python ---
+          # --- [4/9] Python ---
           echo ""
-          echo "--- [4/8] Python ---"
+          echo "--- [4/9] Python ---"
           if command -v python3 &>/dev/null; then
             echo "PASS: $(python3 --version)"
           else
@@ -419,9 +419,9 @@ jobs:
             FAILED=1
           fi
 
-          # --- [5/8] uv ---
+          # --- [5/9] uv ---
           echo ""
-          echo "--- [5/8] uv (Python package installer) ---"
+          echo "--- [5/9] uv (Python package installer) ---"
           if command -v uv &>/dev/null; then
             echo "PASS: uv $(uv --version 2>&1)"
           else
@@ -435,9 +435,9 @@ jobs:
             fi
           fi
 
-          # --- [6/8] jq & yq ---
+          # --- [6/9] jq & yq ---
           echo ""
-          echo "--- [6/8] jq & yq ---"
+          echo "--- [6/9] jq & yq ---"
           for tool in jq yq; do
             if command -v "$tool" &>/dev/null; then
               echo "PASS: $tool already at $(command -v $tool)"
@@ -464,9 +464,27 @@ jobs:
             fi
           done
 
-          # --- [7/8] NGC Docker Login ---
+          # --- [7/9] huggingface-cli ---
           echo ""
-          echo "--- [7/8] NGC Docker Registry ---"
+          echo "--- [7/9] huggingface-cli ---"
+          if command -v huggingface-cli &>/dev/null; then
+            echo "PASS: huggingface-cli at $(command -v huggingface-cli)"
+          else
+            echo "Installing huggingface-cli..."
+            pip3 install --break-system-packages huggingface_hub 2>&1 || true
+            export PATH="$HOME/.local/bin:$PATH"
+            if command -v huggingface-cli &>/dev/null; then
+              echo "PASS: huggingface-cli installed"
+            else
+              echo "FAIL: huggingface-cli could not be installed"
+              echo "      deploy-nmp.sh requires huggingface-cli for model downloads"
+              FAILED=1
+            fi
+          fi
+
+          # --- [8/9] NGC Docker Login ---
+          echo ""
+          echo "--- [8/9] NGC Docker Registry ---"
           if echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin 2>&1; then
             echo "PASS: NGC Docker login successful"
           else
@@ -474,9 +492,9 @@ jobs:
             FAILED=1
           fi
 
-          # --- [8/8] Disk Space ---
+          # --- [9/9] Disk Space ---
           echo ""
-          echo "--- [8/8] Disk Space ---"
+          echo "--- [9/9] Disk Space ---"
           FREE_GB=$(df -BG / | awk 'NR==2 {gsub(/G/,""); print $4}')
           if [ "$FREE_GB" -ge 100 ]; then
             echo "PASS: ${FREE_GB}G free (>= 100G required)"
