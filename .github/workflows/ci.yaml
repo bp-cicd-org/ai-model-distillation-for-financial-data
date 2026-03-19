@@ -79,12 +79,20 @@
 #   the notebook runner's CWD is the repo root (after actions/checkout), so we
 #   replace this with `project_root = Path.cwd()`.
 #
+#   Cell 7 (uv pip install): The ARC runner has no virtualenv, so uv refuses
+#   to install without --system. We inject the flag via string replacement.
+#
 #   Cell 9 (NGC API key): The original uses getpass() for interactive input.
 #   In CI, we replace this with os.environ["NGC_API_KEY"], which is injected
 #   via the notebook runner's -e flag.
 #
+#   Cell 10 (deploy-nmp.sh): The original runs with --progress, which hides
+#   all stdout/stderr behind a progress bar (redirects to /tmp/nemo-deploy.log).
+#   In CI we need full output for debugging, so we remove the flag.
+#
 # We preprocess (rewrite) these cells rather than skipping them, because
-# subsequent cells depend on the variables they define (project_root, NGC_API_KEY).
+# subsequent cells depend on the variables they define or the side effects
+# they produce (project_root, dependencies, NGC_API_KEY, minikube cluster).
 #
 # Skipped cells
 # -------------
@@ -359,9 +367,10 @@ jobs:
       - name: Install deploy-nmp.sh Prerequisites
         run: |
           # deploy-nmp.sh (check_prereqs) expects jq and yq on PATH.
-          # ARC runner images may not include them. Install upfront so the
-          # script's auto-install logic (which needs /usr/local/bin writable
-          # and may try apt-get) doesn't become a point of failure.
+          # /usr/local/bin is read-only on the ARC runner, so install into
+          # $HOME/.local/bin (already on GITHUB_PATH from the uv install step).
+          mkdir -p "$HOME/.local/bin"
+          export PATH="$HOME/.local/bin:$PATH"
           for tool in jq yq; do
             if command -v "$tool" &>/dev/null; then
               echo "$tool already available: $(command -v $tool)"
@@ -369,14 +378,14 @@ jobs:
               echo "Installing $tool..."
               case "$tool" in
                 jq)
-                  curl -fsSL -o /usr/local/bin/jq \
+                  curl -fsSL -o "$HOME/.local/bin/jq" \
                     https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64
-                  chmod +x /usr/local/bin/jq
+                  chmod +x "$HOME/.local/bin/jq"
                   ;;
                 yq)
-                  curl -fsSL -o /usr/local/bin/yq \
+                  curl -fsSL -o "$HOME/.local/bin/yq" \
                     https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-                  chmod +x /usr/local/bin/yq
+                  chmod +x "$HOME/.local/bin/yq"
                   ;;
               esac
               echo "$tool installed: $($tool --version 2>&1 | head -1)"
