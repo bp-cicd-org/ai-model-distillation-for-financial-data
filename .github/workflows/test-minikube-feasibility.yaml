@@ -296,12 +296,12 @@ jobs:
           echo "--- uv ---"
           if command -v uv &>/dev/null; then
             uv --version
-            echo "PASS: uv available"
           else
-            echo "INFO: uv not found, attempting install"
-            pip3 install uv 2>/dev/null || python3 -m pip install uv 2>/dev/null
-            uv --version 2>/dev/null && echo "PASS: uv installed" || echo "FAIL: uv not available"
+            echo "INFO: uv not found, installing via official installer"
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.local/bin:$PATH"
           fi
+          uv --version && echo "PASS: uv available" || echo "FAIL: uv not available"
 
           echo ""
           echo "--- git ---"
@@ -309,7 +309,7 @@ jobs:
 
           echo ""
           echo "--- Available disk space ---"
-          AVAIL_GB=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+          AVAIL_GB=$(df -BG / | awk 'NR==2 {print $4}' | tr -d 'G')
           echo "Available: ${AVAIL_GB}GB (notebook requires >= 200GB)"
           if [ "$AVAIL_GB" -ge 200 ]; then
             echo "PASS: sufficient disk"
@@ -331,10 +331,9 @@ jobs:
           echo "Phase 9: DNS Configuration"
           echo "=========================================="
 
-          echo "--- Can we write to /etc/hosts? ---"
-          if echo "# test entry" | sudo tee -a /etc/hosts > /dev/null 2>&1; then
-            echo "PASS: /etc/hosts is writable"
-            sudo sed -i '/# test entry/d' /etc/hosts
+          echo "--- Can we append to /etc/hosts? (deploy-nmp.sh uses tee -a) ---"
+          if echo "# feasibility-test-marker" | sudo tee -a /etc/hosts > /dev/null 2>&1; then
+            echo "PASS: /etc/hosts is writable (append)"
           else
             echo "FAIL: cannot write to /etc/hosts"
             echo "deploy-nmp.sh configure_dns() will fail"
@@ -346,15 +345,22 @@ jobs:
             MINIKUBE_IP=$(minikube ip 2>/dev/null)
             echo "Minikube IP: $MINIKUBE_IP"
             if [ -n "$MINIKUBE_IP" ]; then
-              echo "$MINIKUBE_IP nemo.test" | sudo tee -a /etc/hosts > /dev/null
-              echo "$MINIKUBE_IP nim.test" | sudo tee -a /etc/hosts > /dev/null
-              echo "$MINIKUBE_IP data-store.test" | sudo tee -a /etc/hosts > /dev/null
+              {
+                echo "$MINIKUBE_IP nemo.test"
+                echo "$MINIKUBE_IP nim.test"
+                echo "$MINIKUBE_IP data-store.test"
+              } | sudo tee -a /etc/hosts > /dev/null
               echo "PASS: DNS entries added"
               grep -E "nemo.test|nim.test|data-store.test" /etc/hosts
             fi
           else
             echo "SKIP: minikube not running"
           fi
+
+          echo ""
+          echo "--- Note: sed -i does NOT work on /etc/hosts in this env ---"
+          echo "--- deploy-nmp.sh uses tee -a (append), which works fine ---"
+          echo "--- On a fresh CI run, no cleanup is needed (ephemeral runner) ---"
 
       # =====================================================================
       # Final Summary
@@ -434,10 +440,9 @@ jobs:
             ISSUES="${ISSUES}python "
           fi
 
-          # /etc/hosts
-          if echo "# feasibility-check" | sudo tee -a /etc/hosts > /dev/null 2>&1; then
-            sudo sed -i '/# feasibility-check/d' /etc/hosts
-            echo "[PASS] /etc/hosts writable"
+          # /etc/hosts (test append only — sed -i fails on mounted filesystems)
+          if echo "# feasibility-final-check" | sudo tee -a /etc/hosts > /dev/null 2>&1; then
+            echo "[PASS] /etc/hosts writable (append)"
           else
             echo "[FAIL] /etc/hosts not writable"
             ISSUES="${ISSUES}hosts "
