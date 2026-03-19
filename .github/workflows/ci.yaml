@@ -72,7 +72,7 @@
 #
 # Notebook preprocessing
 # ----------------------
-# Two cells require CI-specific modifications:
+# Four cells require CI-specific modifications:
 #
 #   Cell 5 (project_root): The original code computes project_root by walking
 #   up parent directories, assuming a Brev Launchable directory layout. In CI,
@@ -162,10 +162,12 @@
 # |   108 | External URL inference test (Brev-specific)              |
 #
 # Preprocessed (rewritten, NOT skipped):
-# |  Cell | Original                      | CI Replacement                |
-# |-------|-------------------------------|-------------------------------|
-# |     5 | project_root = notebook_dir.parent | project_root = Path.cwd() |
-# |     9 | getpass("Enter NGC key")      | os.environ["NGC_API_KEY"]     |
+# |  Cell | Original                             | CI Replacement                     |
+# |-------|--------------------------------------|------------------------------------|
+# |     5 | project_root = notebook_dir.parent   | project_root = Path.cwd()          |
+# |     7 | uv pip install -r ...                | uv pip install --system -r ...     |
+# |     9 | getpass("Enter NGC key")             | os.environ["NGC_API_KEY"]          |
+# |    10 | deploy-nmp.sh --progress             | deploy-nmp.sh (no --progress)      |
 #
 # =============================================================================
 
@@ -354,6 +356,33 @@ jobs:
           fi
           uv --version
 
+      - name: Install deploy-nmp.sh Prerequisites
+        run: |
+          # deploy-nmp.sh (check_prereqs) expects jq and yq on PATH.
+          # ARC runner images may not include them. Install upfront so the
+          # script's auto-install logic (which needs /usr/local/bin writable
+          # and may try apt-get) doesn't become a point of failure.
+          for tool in jq yq; do
+            if command -v "$tool" &>/dev/null; then
+              echo "$tool already available: $(command -v $tool)"
+            else
+              echo "Installing $tool..."
+              case "$tool" in
+                jq)
+                  curl -fsSL -o /usr/local/bin/jq \
+                    https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64
+                  chmod +x /usr/local/bin/jq
+                  ;;
+                yq)
+                  curl -fsSL -o /usr/local/bin/yq \
+                    https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+                  chmod +x /usr/local/bin/yq
+                  ;;
+              esac
+              echo "$tool installed: $($tool --version 2>&1 | head -1)"
+            fi
+          done
+
       # =====================================================================
       # Phase 2: Notebook Runner Setup
       # =====================================================================
@@ -415,6 +444,14 @@ jobs:
               'print(f"Project root: {project_root}")\n',
           ]
 
+          # Cell 7: Add --system to uv pip install.
+          # ARC runner has no virtualenv; uv requires --system to install
+          # into the system Python site-packages.
+          cell7_src = ''.join(nb['cells'][7]['source'])
+          nb['cells'][7]['source'] = [
+              cell7_src.replace('uv pip install', 'uv pip install --system')
+          ]
+
           # Cell 9: Replace interactive getpass() with env var.
           # The -e flag on notebook_runner injects NGC_API_KEY into the kernel
           # environment; this cell just reads it into a Python variable.
@@ -426,12 +463,23 @@ jobs:
               'print(f"NGC_API_KEY is set ({len(NGC_API_KEY)} chars)")\n',
           ]
 
+          # Cell 10: Remove --progress flag from deploy-nmp.sh.
+          # In CI we need full stdout/stderr for debugging; --progress hides
+          # all output behind a progress bar and redirects to /tmp/nemo-deploy.log.
+          cell10_src = ''.join(nb['cells'][10]['source'])
+          nb['cells'][10]['source'] = [
+              cell10_src.replace('./scripts/deploy-nmp.sh --progress',
+                                 './scripts/deploy-nmp.sh')
+          ]
+
           with open(nb_path, 'w') as f:
               json.dump(nb, f, indent=1)
 
           print(f"Preprocessed {nb_path}")
-          print(f"  Cell 5: project_root = Path.cwd()")
-          print(f"  Cell 9: getpass() -> os.environ")
+          print(f"  Cell 5:  project_root = Path.cwd()")
+          print(f"  Cell 7:  uv pip install --system")
+          print(f"  Cell 9:  getpass() -> os.environ")
+          print(f"  Cell 10: deploy-nmp.sh without --progress")
           PREPROCESS
 
       # =====================================================================
@@ -547,6 +595,7 @@ jobs:
             echo "ALL SERVICES HEALTHY"
           else
             echo "SOME SERVICES UNHEALTHY (notebook may have failed at deployment step)"
+            exit 1
           fi
 
       # =====================================================================
@@ -579,6 +628,13 @@ jobs:
           echo "========================================"
           echo "  COLLECTING LOGS FOR DEBUGGING"
           echo "========================================"
+          echo ""
+          echo "--- deploy-nmp.sh Log (/tmp/nemo-deploy.log) ---"
+          if [ -f /tmp/nemo-deploy.log ]; then
+            cat /tmp/nemo-deploy.log
+          else
+            echo "(log file not found — deploy-nmp.sh may not have started)"
+          fi
           echo ""
           echo "--- Docker Compose Logs ---"
           docker compose -f deploy/docker-compose.yaml logs --tail=50 2>/dev/null || true
