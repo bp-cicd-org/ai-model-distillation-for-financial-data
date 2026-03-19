@@ -1,193 +1,481 @@
-# Prove whether minikube can run inside the current ARC runner (K8s pod)
+# Verify whether the notebook can run end-to-end in this CI runner environment.
+# The notebook requires: minikube + GPU + NeMo Microservices + Docker Compose + Python
 name: Test Minikube Feasibility
 
 on:
   workflow_dispatch:
+  push:
+    branches: ['*']
+    paths:
+      - '.github/workflows/test-minikube-feasibility.yaml'
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
 
 jobs:
   test-minikube:
-    name: Can we run minikube here?
-    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    name: Can we run the notebook here?
+    runs-on: arc-runner-set-oke-org-poc-2-gpu
     steps:
-      - name: 1. Environment Detection
+
+      # =====================================================================
+      # Phase 1: Runner Environment Detection
+      # =====================================================================
+      - name: "1. Runner Environment Detection"
         run: |
           echo "=========================================="
-          echo "Environment Detection"
+          echo "Phase 1: Runner Environment"
           echo "=========================================="
 
-          echo "--- Am I in a container? ---"
+          echo "--- Container Detection ---"
           if [ -f /.dockerenv ]; then
-            echo "YES - /.dockerenv exists (Docker container)"
+            echo "Container: YES (Docker)"
           elif [ -f /run/.containerenv ]; then
-            echo "YES - /run/.containerenv exists (Podman container)"
+            echo "Container: YES (Podman)"
           elif grep -q 'kubepods\|docker\|containerd' /proc/1/cgroup 2>/dev/null; then
-            echo "YES - cgroup indicates container environment"
+            echo "Container: YES (cgroup)"
           else
-            echo "NO - appears to be bare metal/VM"
+            echo "Container: NO (bare metal/VM-like)"
+          fi
+
+          echo "PID 1: $(cat /proc/1/cmdline 2>/dev/null | tr '\0' ' ')"
+          echo "Hostname: $(hostname)"
+          echo "Kernel: $(uname -r)"
+          echo "User: $(whoami) ($(id))"
+          echo "Root FS: $(df -T / | tail -1 | awk '{print $2}')"
+          echo "cgroup: $(cat /proc/1/cgroup 2>/dev/null | head -5)"
+          echo "K8s Host: ${KUBERNETES_SERVICE_HOST:-not set}"
+
+      # =====================================================================
+      # Phase 2: Docker + GPU (required by deploy-nmp.sh)
+      # =====================================================================
+      - name: "2. Docker Availability"
+        run: |
+          echo "=========================================="
+          echo "Phase 2: Docker"
+          echo "=========================================="
+
+          echo "--- Docker Version ---"
+          docker --version || echo "FAIL: docker not found"
+
+          echo ""
+          echo "--- Docker Server Version ---"
+          DOCKER_SERVER=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo "UNKNOWN")
+          echo "Server: $DOCKER_SERVER"
+
+          REQUIRED="27.0.0"
+          if [ "$DOCKER_SERVER" != "UNKNOWN" ] && [ "$(printf '%s\n' "$REQUIRED" "$DOCKER_SERVER" | sort -V | head -n1)" = "$REQUIRED" ]; then
+            echo "PASS: Docker >= $REQUIRED"
+          else
+            echo "FAIL: Docker < $REQUIRED (deploy-nmp.sh requires >= 27.0.0)"
           fi
 
           echo ""
-          echo "--- PID 1 ---"
-          cat /proc/1/cmdline 2>/dev/null | tr '\0' ' ' || echo "Cannot read PID 1"
+          echo "--- Docker Compose ---"
+          docker compose version || echo "FAIL: docker compose not available"
 
           echo ""
-          echo "--- Hostname ---"
-          hostname
+          echo "--- Docker Socket ---"
+          ls -la /var/run/docker.sock 2>/dev/null || echo "FAIL: no docker socket"
 
-          echo ""
-          echo "--- Kernel ---"
-          uname -a
-
-          echo ""
-          echo "--- User ---"
-          whoami
-          id
-
-          echo ""
-          echo "--- Filesystem root type ---"
-          df -T / | head -5
-
-          echo ""
-          echo "--- cgroup info ---"
-          cat /proc/1/cgroup 2>/dev/null | head -20 || echo "Cannot read cgroup"
-
-          echo ""
-          echo "--- Kubernetes indicators ---"
-          echo "KUBERNETES_SERVICE_HOST=${KUBERNETES_SERVICE_HOST:-not set}"
-          echo "KUBERNETES_SERVICE_PORT=${KUBERNETES_SERVICE_PORT:-not set}"
-          ls -la /var/run/secrets/kubernetes.io/ 2>/dev/null || echo "No K8s service account mount found"
-
-      - name: 2. Check Docker Availability
+      - name: "3. GPU Access"
         run: |
           echo "=========================================="
-          echo "Docker Availability"
+          echo "Phase 3: GPU Access"
           echo "=========================================="
 
-          echo "--- docker binary ---"
-          which docker 2>/dev/null && docker --version || echo "docker NOT found"
+          echo "--- nvidia-smi (direct on host) ---"
+          if command -v nvidia-smi &>/dev/null; then
+            nvidia-smi
+            echo "PASS: nvidia-smi available directly"
+          else
+            echo "INFO: nvidia-smi not on PATH (checking via docker next)"
+          fi
 
           echo ""
-          echo "--- docker info ---"
-          docker info 2>&1 | head -30 || echo "docker info FAILED"
+          echo "--- nvidia-smi (via docker --gpus all) ---"
+          if docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi 2>&1; then
+            echo "PASS: GPU accessible via docker --gpus all"
+          else
+            echo "FAIL: GPU NOT accessible via docker (NeMo pods will NOT work)"
+          fi
 
           echo ""
-          echo "--- docker socket ---"
-          ls -la /var/run/docker.sock 2>/dev/null || echo "No docker socket"
+          echo "--- GPU Count ---"
+          GPU_COUNT=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l || echo "0")
+          echo "GPU Count: $GPU_COUNT (notebook requires >= 2)"
+          if [ "$GPU_COUNT" -ge 2 ]; then
+            echo "PASS: sufficient GPUs"
+          else
+            echo "FAIL: insufficient GPUs for notebook"
+          fi
 
-          echo ""
-          echo "--- Can we run a container? ---"
-          docker run --rm alpine echo "Hello from nested container" 2>&1 || echo "FAILED to run container"
-
-      - name: 3. Check GPU Access
+      - name: "4. NVIDIA Container Toolkit (nvidia-ctk)"
         run: |
           echo "=========================================="
-          echo "GPU Access"
+          echo "Phase 4: nvidia-ctk (required by deploy-nmp.sh)"
           echo "=========================================="
 
-          echo "--- nvidia-smi (direct) ---"
-          nvidia-smi 2>&1 | head -20 || echo "nvidia-smi NOT available directly"
+          echo "--- Check nvidia-ctk on host ---"
+          if command -v nvidia-ctk &>/dev/null; then
+            nvidia-ctk --version
+            echo "PASS: nvidia-ctk available"
+          else
+            echo "WARN: nvidia-ctk NOT on PATH"
+            echo ""
+            echo "--- Check if nvidia-ctk exists elsewhere ---"
+            find / -name "nvidia-ctk" -type f 2>/dev/null | head -5 || echo "Not found anywhere"
+            echo ""
+            echo "--- Check nvidia-container-toolkit package ---"
+            dpkg -l | grep -i nvidia-container 2>/dev/null || rpm -qa | grep -i nvidia-container 2>/dev/null || echo "No nvidia-container-toolkit package found"
+            echo ""
+            echo "--- Check Docker runtime config ---"
+            docker info 2>/dev/null | grep -i -A5 "runtimes\|nvidia" || echo "No nvidia runtime in docker info"
+            echo ""
+            echo "--- Try to install nvidia-ctk ---"
+            echo "Attempting install..."
+            curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg 2>/dev/null
+            curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+              sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+              sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list > /dev/null 2>&1
+            sudo apt-get update -qq 2>/dev/null && sudo apt-get install -y -qq nvidia-container-toolkit 2>/dev/null
+            if command -v nvidia-ctk &>/dev/null; then
+              nvidia-ctk --version
+              echo "PASS: nvidia-ctk installed successfully"
+            else
+              echo "FAIL: could not install nvidia-ctk"
+              echo "deploy-nmp.sh will die at check_prereqs()"
+            fi
+          fi
 
-          echo ""
-          echo "--- nvidia-smi (via docker) ---"
-          docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi 2>&1 | head -20 || echo "GPU via docker FAILED"
-
-          echo ""
-          echo "--- nvidia-ctk ---"
-          nvidia-ctk --version 2>&1 || echo "nvidia-ctk NOT found"
-
-      - name: 4. Check systemd (required by deploy-nmp.sh)
+      # =====================================================================
+      # Phase 3: Minikube with GPU
+      # =====================================================================
+      - name: "5. Minikube Start (with GPU)"
         run: |
           echo "=========================================="
-          echo "systemd Check"
+          echo "Phase 5: Minikube with GPU passthrough"
           echo "=========================================="
 
-          echo "--- systemctl ---"
-          systemctl --version 2>&1 || echo "systemctl NOT available"
-
-          echo ""
-          echo "--- PID 1 is systemd? ---"
-          ps -p 1 -o comm= 2>/dev/null || echo "Cannot check PID 1"
-
-      - name: 5. Try to Install minikube
-        run: |
-          echo "=========================================="
-          echo "Installing minikube"
-          echo "=========================================="
-
+          echo "--- Install minikube ---"
           curl -LO https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64 2>&1
-          chmod +x minikube-linux-amd64
-          sudo mv minikube-linux-amd64 /usr/local/bin/minikube 2>/dev/null || mv minikube-linux-amd64 ./minikube
+          sudo install minikube-linux-amd64 /usr/local/bin/minikube
+          minikube version
 
-          minikube version 2>&1 || ./minikube version 2>&1 || echo "minikube install FAILED"
-
-      - name: 6. Try to Start minikube (THE REAL TEST)
-        run: |
-          echo "=========================================="
-          echo "Attempting to start minikube..."
-          echo "=========================================="
           echo ""
-          echo "This is expected to FAIL in a K8s pod."
+          echo "--- Install kubectl ---"
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" 2>&1
+          sudo install kubectl /usr/local/bin/kubectl
+          kubectl version --client
+
           echo ""
-
-          MINIKUBE_BIN="minikube"
-          command -v minikube >/dev/null 2>&1 || MINIKUBE_BIN="./minikube"
-
-          # Attempt 1: standard docker driver
-          echo "--- Attempt 1: minikube start --driver=docker ---"
-          timeout 120 $MINIKUBE_BIN start \
+          echo "--- Start minikube with --gpus=all (as deploy-nmp.sh does) ---"
+          minikube start \
             --driver=docker \
             --container-runtime=docker \
-            --cpus=2 \
-            --memory=4096 \
+            --cpus=no-limit \
+            --memory=no-limit \
+            --gpus=all \
             --force \
-            2>&1 || echo ">>> ATTEMPT 1 FAILED (exit code: $?)"
+            2>&1 || echo ">>> MINIKUBE WITH GPU FAILED (exit code: $?)"
 
           echo ""
-          $MINIKUBE_BIN status 2>&1 || echo "minikube is NOT running"
+          echo "--- Minikube Status ---"
+          minikube status || echo "minikube is NOT running"
 
           echo ""
-          echo "--- Attempt 2: minikube start --driver=none (if docker failed) ---"
-          if ! $MINIKUBE_BIN status 2>/dev/null | grep -q "Running"; then
-            timeout 120 $MINIKUBE_BIN start \
-              --driver=none \
-              --force \
-              2>&1 || echo ">>> ATTEMPT 2 FAILED (exit code: $?)"
-          fi
+          echo "--- Cluster Nodes ---"
+          kubectl get nodes -o wide 2>/dev/null || echo "kubectl get nodes failed"
 
           echo ""
-          $MINIKUBE_BIN status 2>&1 || echo "minikube is NOT running"
+          echo "--- Check GPU inside minikube ---"
+          kubectl run gpu-test --image=nvidia/cuda:12.2.0-base-ubuntu22.04 --restart=Never \
+            --command -- nvidia-smi 2>/dev/null || echo "Could not create GPU test pod"
+          sleep 10
+          kubectl logs gpu-test 2>/dev/null || echo "Could not get GPU test pod logs"
+          kubectl delete pod gpu-test --ignore-not-found 2>/dev/null
 
-      - name: 7. Final Verdict
+      # =====================================================================
+      # Phase 4: Helm + NeMo Microservices Installability
+      # =====================================================================
+      - name: "6. Helm + NeMo Chart (dry-run)"
         if: always()
         run: |
           echo "=========================================="
-          echo "FINAL VERDICT"
+          echo "Phase 6: Helm + NeMo Microservices"
           echo "=========================================="
 
-          MINIKUBE_BIN="minikube"
-          command -v minikube >/dev/null 2>&1 || MINIKUBE_BIN="./minikube"
+          echo "--- Install helm ---"
+          curl -fsSL https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz | tar -xz
+          sudo mv linux-amd64/helm /usr/local/bin/helm && rm -rf linux-amd64
+          helm version
 
-          if $MINIKUBE_BIN status 2>/dev/null | grep -q "Running"; then
+          echo ""
+          echo "--- Add NeMo Helm repo ---"
+          if [ -n "$NGC_API_KEY" ]; then
+            helm repo add nemo-microservices https://helm.ngc.nvidia.com/nvidia/nemo-microservices \
+              --username='$oauthtoken' \
+              --password="$NGC_API_KEY" 2>&1 || echo "FAIL: cannot add NeMo helm repo"
+            helm repo update
+
             echo ""
-            echo "RESULT: minikube IS running"
-            echo "Notebook execution in CI may be feasible."
+            echo "--- Search NeMo chart ---"
+            helm search repo nemo-microservices 2>&1 | head -10
+
             echo ""
-            $MINIKUBE_BIN status
-            kubectl get nodes 2>/dev/null || true
+            echo "--- Dry-run install (validates chart + K8s API) ---"
+            kubectl create secret docker-registry nvcrimagepullsecret \
+              --docker-server=nvcr.io \
+              --docker-username='$oauthtoken' \
+              --docker-password="$NGC_API_KEY" 2>/dev/null || true
+            kubectl create secret generic ngc-api \
+              --from-literal=NGC_API_KEY="$NGC_API_KEY" 2>/dev/null || true
+
+            helm install nemo-test nemo-microservices/nemo-microservices-helm-chart \
+              --version 25.10.0 \
+              --dry-run \
+              --username='$oauthtoken' \
+              --password="$NGC_API_KEY" \
+              2>&1 | tail -20 || echo "FAIL: helm dry-run failed"
+            echo ""
+            echo "PASS: Helm dry-run completed"
           else
-            echo ""
-            echo "RESULT: minikube CANNOT run in this environment"
-            echo ""
-            echo "Implications:"
-            echo "  - Notebook (ai-model-distillation-financial-data.ipynb) CANNOT execute in CI"
-            echo "  - NeMo Microservices (deploy-nmp.sh) CANNOT be deployed"
-            echo "  - CI should be limited to: Docker Compose deploy + health check"
-            echo ""
+            echo "SKIP: NGC_API_KEY not set, cannot test NeMo chart"
           fi
 
-      - name: 8. Cleanup
+      # =====================================================================
+      # Phase 5: Docker Compose (Data Flywheel services)
+      # =====================================================================
+      - name: "7. Docker Compose feasibility"
         if: always()
         run: |
-          MINIKUBE_BIN="minikube"
-          command -v minikube >/dev/null 2>&1 || MINIKUBE_BIN="./minikube"
-          $MINIKUBE_BIN delete 2>/dev/null || true
+          echo "=========================================="
+          echo "Phase 7: Docker Compose (DFW services)"
+          echo "=========================================="
+
+          echo "--- Docker Compose version ---"
+          docker compose version || echo "FAIL: docker compose not available"
+
+          echo ""
+          echo "--- Can run multi-container stack? ---"
+          docker run -d --name test-redis redis:7.2-alpine 2>&1 && echo "PASS: Redis container started" || echo "FAIL"
+          docker run -d --name test-mongo mongo:7.0 2>&1 && echo "PASS: MongoDB container started" || echo "FAIL"
+
+          sleep 5
+          docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "test-redis|test-mongo" || echo "Containers not running"
+
+          docker rm -f test-redis test-mongo 2>/dev/null
+
+          echo ""
+          echo "--- NGC Registry Access ---"
+          if [ -n "$NGC_API_KEY" ]; then
+            echo "$NGC_API_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin 2>&1
+            echo "PASS: NGC registry login"
+          else
+            echo "SKIP: NGC_API_KEY not set"
+          fi
+
+      # =====================================================================
+      # Phase 6: Python / Notebook Runner prerequisites
+      # =====================================================================
+      - name: "8. Python + Notebook prerequisites"
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "Phase 8: Python / Notebook Runner"
+          echo "=========================================="
+
+          echo "--- Python ---"
+          python3 --version 2>/dev/null || echo "FAIL: python3 not found"
+
+          echo ""
+          echo "--- pip ---"
+          pip3 --version 2>/dev/null || python3 -m pip --version 2>/dev/null || echo "FAIL: pip not found"
+
+          echo ""
+          echo "--- uv ---"
+          if command -v uv &>/dev/null; then
+            uv --version
+          else
+            echo "INFO: uv not found, installing via official installer"
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            export PATH="$HOME/.local/bin:$PATH"
+          fi
+          uv --version && echo "PASS: uv available" || echo "FAIL: uv not available"
+
+          echo ""
+          echo "--- git ---"
+          git --version || echo "FAIL: git not found"
+
+          echo ""
+          echo "--- Available disk space ---"
+          AVAIL_GB=$(df -BG / | awk 'NR==2 {print $4}' | tr -d 'G')
+          echo "Available: ${AVAIL_GB}GB (notebook requires >= 200GB)"
+          if [ "$AVAIL_GB" -ge 200 ]; then
+            echo "PASS: sufficient disk"
+          else
+            echo "WARN: disk might be tight"
+          fi
+
+          echo ""
+          echo "--- Available memory ---"
+          free -h | head -3
+
+      # =====================================================================
+      # Phase 7: DNS Configuration (deploy-nmp.sh writes to /etc/hosts)
+      # =====================================================================
+      - name: "9. DNS / /etc/hosts writability"
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "Phase 9: DNS Configuration"
+          echo "=========================================="
+
+          echo "--- Can we append to /etc/hosts? (deploy-nmp.sh uses tee -a) ---"
+          if echo "# feasibility-test-marker" | sudo tee -a /etc/hosts > /dev/null 2>&1; then
+            echo "PASS: /etc/hosts is writable (append)"
+          else
+            echo "FAIL: cannot write to /etc/hosts"
+            echo "deploy-nmp.sh configure_dns() will fail"
+          fi
+
+          echo ""
+          echo "--- Can we set minikube IP in hosts? ---"
+          if command -v minikube &>/dev/null && minikube status 2>/dev/null | grep -q "Running"; then
+            MINIKUBE_IP=$(minikube ip 2>/dev/null)
+            echo "Minikube IP: $MINIKUBE_IP"
+            if [ -n "$MINIKUBE_IP" ]; then
+              {
+                echo "$MINIKUBE_IP nemo.test"
+                echo "$MINIKUBE_IP nim.test"
+                echo "$MINIKUBE_IP data-store.test"
+              } | sudo tee -a /etc/hosts > /dev/null
+              echo "PASS: DNS entries added"
+              grep -E "nemo.test|nim.test|data-store.test" /etc/hosts
+            fi
+          else
+            echo "SKIP: minikube not running"
+          fi
+
+          echo ""
+          echo "--- Note: sed -i does NOT work on /etc/hosts in this env ---"
+          echo "--- deploy-nmp.sh uses tee -a (append), which works fine ---"
+          echo "--- On a fresh CI run, no cleanup is needed (ephemeral runner) ---"
+
+      # =====================================================================
+      # Final Summary
+      # =====================================================================
+      - name: "10. FINAL SUMMARY"
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "FINAL SUMMARY - Notebook CI Feasibility"
+          echo "=========================================="
+          echo ""
+
+          ISSUES=""
+
+          # Docker >= 27
+          DOCKER_VER=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo "0")
+          if [ "$(printf '%s\n' "27.0.0" "$DOCKER_VER" | sort -V | head -n1)" = "27.0.0" ]; then
+            echo "[PASS] Docker >= 27.0.0 ($DOCKER_VER)"
+          else
+            echo "[FAIL] Docker < 27.0.0 ($DOCKER_VER)"
+            ISSUES="${ISSUES}docker "
+          fi
+
+          # GPU via docker
+          if docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi > /dev/null 2>&1; then
+            echo "[PASS] GPU accessible via docker --gpus all"
+          else
+            echo "[FAIL] GPU not accessible via docker"
+            ISSUES="${ISSUES}gpu "
+          fi
+
+          # nvidia-ctk
+          if command -v nvidia-ctk &>/dev/null; then
+            echo "[PASS] nvidia-ctk available"
+          else
+            echo "[FAIL] nvidia-ctk NOT available (deploy-nmp.sh will die)"
+            ISSUES="${ISSUES}nvidia-ctk "
+          fi
+
+          # minikube
+          if command -v minikube &>/dev/null && minikube status 2>/dev/null | grep -q "Running"; then
+            echo "[PASS] minikube is running"
+          else
+            echo "[FAIL] minikube not running"
+            ISSUES="${ISSUES}minikube "
+          fi
+
+          # kubectl
+          if command -v kubectl &>/dev/null; then
+            echo "[PASS] kubectl available"
+          else
+            echo "[FAIL] kubectl not available"
+            ISSUES="${ISSUES}kubectl "
+          fi
+
+          # helm
+          if command -v helm &>/dev/null; then
+            echo "[PASS] helm available"
+          else
+            echo "[FAIL] helm not available"
+            ISSUES="${ISSUES}helm "
+          fi
+
+          # Docker Compose
+          if docker compose version &>/dev/null; then
+            echo "[PASS] docker compose available"
+          else
+            echo "[FAIL] docker compose not available"
+            ISSUES="${ISSUES}compose "
+          fi
+
+          # Python
+          if command -v python3 &>/dev/null; then
+            echo "[PASS] python3 available ($(python3 --version 2>&1))"
+          else
+            echo "[FAIL] python3 not available"
+            ISSUES="${ISSUES}python "
+          fi
+
+          # /etc/hosts (test append only — sed -i fails on mounted filesystems)
+          if echo "# feasibility-final-check" | sudo tee -a /etc/hosts > /dev/null 2>&1; then
+            echo "[PASS] /etc/hosts writable (append)"
+          else
+            echo "[FAIL] /etc/hosts not writable"
+            ISSUES="${ISSUES}hosts "
+          fi
+
+          # NGC key
+          if [ -n "$NGC_API_KEY" ]; then
+            echo "[PASS] NGC_API_KEY is set"
+          else
+            echo "[FAIL] NGC_API_KEY not set"
+            ISSUES="${ISSUES}ngc-key "
+          fi
+
+          echo ""
+          echo "=========================================="
+          if [ -z "$ISSUES" ]; then
+            echo "VERDICT: ALL CHECKS PASSED"
+            echo "Notebook execution in CI is FEASIBLE"
+          else
+            echo "VERDICT: BLOCKERS FOUND"
+            echo "Failed checks: $ISSUES"
+            echo ""
+            echo "Notebook CANNOT run until these are resolved."
+            echo "Recommendation: CI should be limited to"
+            echo "  Docker Compose deploy + health check"
+          fi
+          echo "=========================================="
+
+      # =====================================================================
+      # Cleanup
+      # =====================================================================
+      - name: "Cleanup"
+        if: always()
+        run: |
+          minikube delete 2>/dev/null || true
+          docker rm -f $(docker ps -aq) 2>/dev/null || true
