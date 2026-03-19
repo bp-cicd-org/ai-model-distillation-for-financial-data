@@ -11,7 +11,7 @@ on:
 jobs:
   test-minikube:
     name: Can we run minikube here?
-    runs-on: arc-runner-set-oke-org-poc-4-gpu
+    runs-on: arc-runner-set-oke-org-poc-2-gpu
     steps:
       - name: 1. Environment Detection
         run: |
