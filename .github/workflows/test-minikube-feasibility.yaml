@@ -3,11 +3,15 @@ name: Test Minikube Feasibility
 
 on:
   workflow_dispatch:
+  push:
+    branches: ['*']
+    paths:
+      - '.github/workflows/test-minikube-feasibility.yaml'
 
 jobs:
   test-minikube:
     name: Can we run minikube here?
-    runs-on: arc-runners-org-nvidia-ai-bp-4-gpu
+    runs-on: arc-runner-set-oke-org-poc-4-gpu
     steps:
       - name: 1. Environment Detection
         run: |
