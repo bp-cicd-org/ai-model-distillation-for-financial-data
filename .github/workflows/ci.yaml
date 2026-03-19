@@ -331,49 +331,116 @@ jobs:
           fetch-depth: 0
 
       # =====================================================================
-      # Phase 1: Environment Setup
+      # Phase 1: GPU Runner Preflight — check & install ALL prerequisites
+      # before any real work begins. Fail fast if anything critical is missing.
       # =====================================================================
-      - name: Display Runner Information
+      - name: "GPU Runner Preflight: Validate & Prepare Environment"
         run: |
           echo "========================================"
-          echo "  RUNNER ENVIRONMENT"
+          echo "  GPU RUNNER PREFLIGHT"
           echo "========================================"
-          echo "Runner: $(hostname)"
-          echo "Kernel: $(uname -r)"
-          echo "Docker: $(docker --version 2>/dev/null || echo 'not found')"
-          echo "Compose: $(docker compose version 2>/dev/null || echo 'not found')"
-          echo "Python: $(python3 --version 2>/dev/null || echo 'not found')"
-          echo "Disk: $(df -BG / | awk 'NR==2 {print $4}') available"
-          echo "Memory: $(free -h | awk 'NR==2 {print $7}') available"
-          echo ""
-          echo "GPU Information:"
-          docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 \
-            nvidia-smi --query-gpu=index,name,memory.total,driver_version \
-            --format=csv,noheader 2>/dev/null || echo "GPU check via docker failed"
-
-      - name: Docker Login to NGC
-        run: |
-          echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
-
-      - name: Install uv
-        run: |
-          if ! command -v uv &>/dev/null; then
-            curl -LsSf https://astral.sh/uv/install.sh | sh
-            echo "$HOME/.local/bin" >> $GITHUB_PATH
-            export PATH="$HOME/.local/bin:$PATH"
-          fi
-          uv --version
-
-      - name: Install deploy-nmp.sh Prerequisites
-        run: |
-          # deploy-nmp.sh (check_prereqs) expects jq and yq on PATH.
-          # /usr/local/bin is read-only on the ARC runner, so install into
-          # $HOME/.local/bin (already on GITHUB_PATH from the uv install step).
+          FAILED=0
           mkdir -p "$HOME/.local/bin"
           export PATH="$HOME/.local/bin:$PATH"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+          # --- Runner Info ---
+          echo ""
+          echo "--- [Info] Runner Environment ---"
+          echo "Hostname: $(hostname)"
+          echo "Kernel:   $(uname -r)"
+          echo "User:     $(whoami) (uid=$(id -u))"
+          echo "Disk:     $(df -BG / | awk 'NR==2 {print $4}') available"
+          echo "Memory:   $(free -h | awk 'NR==2 {print $7}') available"
+
+          # --- [1/8] Docker ---
+          echo ""
+          echo "--- [1/8] Docker ---"
+          if command -v docker &>/dev/null; then
+            DOCKER_VER=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo "0")
+            echo "Docker version: $DOCKER_VER"
+            if [[ "$(printf '%s\n' "27.0.0" "$DOCKER_VER" | sort -V | head -n1)" == "27.0.0" ]]; then
+              echo "PASS: Docker >= 27.0.0"
+            else
+              echo "FAIL: Docker >= 27.0.0 required (found $DOCKER_VER)"
+              FAILED=1
+            fi
+            echo "Compose: $(docker compose version 2>/dev/null || echo 'not found')"
+          else
+            echo "FAIL: Docker not found"
+            FAILED=1
+          fi
+
+          # --- [2/8] GPU Access ---
+          echo ""
+          echo "--- [2/8] GPU Access (via Docker) ---"
+          GPU_INFO=$(docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 \
+            nvidia-smi --query-gpu=index,name,memory.total,driver_version \
+            --format=csv,noheader 2>&1) || true
+          GPU_COUNT=$(echo "$GPU_INFO" | grep -c "," || echo "0")
+          if [ "$GPU_COUNT" -ge 2 ]; then
+            echo "$GPU_INFO"
+            echo "PASS: $GPU_COUNT GPUs accessible (>= 2 required)"
+          else
+            echo "FAIL: Need >= 2 GPUs, found $GPU_COUNT"
+            echo "$GPU_INFO"
+            FAILED=1
+          fi
+
+          # --- [3/8] nvidia-ctk ---
+          echo ""
+          echo "--- [3/8] NVIDIA Container Toolkit (nvidia-ctk) ---"
+          if command -v nvidia-ctk &>/dev/null; then
+            echo "PASS: nvidia-ctk $(nvidia-ctk --version 2>&1 | head -1)"
+          else
+            echo "WARN: nvidia-ctk not on PATH — attempting install..."
+            curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+              | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg 2>/dev/null
+            curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+              | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+              | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list > /dev/null 2>&1
+            sudo apt-get update -qq 2>/dev/null && sudo apt-get install -y -qq nvidia-container-toolkit 2>/dev/null
+            if command -v nvidia-ctk &>/dev/null; then
+              echo "PASS: nvidia-ctk installed — $(nvidia-ctk --version 2>&1 | head -1)"
+            else
+              echo "FAIL: nvidia-ctk could not be installed"
+              echo "      deploy-nmp.sh requires nvidia-ctk for GPU passthrough to minikube"
+              FAILED=1
+            fi
+          fi
+
+          # --- [4/8] Python ---
+          echo ""
+          echo "--- [4/8] Python ---"
+          if command -v python3 &>/dev/null; then
+            echo "PASS: $(python3 --version)"
+          else
+            echo "FAIL: python3 not found"
+            FAILED=1
+          fi
+
+          # --- [5/8] uv ---
+          echo ""
+          echo "--- [5/8] uv (Python package installer) ---"
+          if command -v uv &>/dev/null; then
+            echo "PASS: uv $(uv --version 2>&1)"
+          else
+            echo "Installing uv..."
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            if command -v uv &>/dev/null; then
+              echo "PASS: uv installed — $(uv --version 2>&1)"
+            else
+              echo "FAIL: uv could not be installed"
+              FAILED=1
+            fi
+          fi
+
+          # --- [6/8] jq & yq ---
+          echo ""
+          echo "--- [6/8] jq & yq ---"
           for tool in jq yq; do
             if command -v "$tool" &>/dev/null; then
-              echo "$tool already available: $(command -v $tool)"
+              echo "PASS: $tool already at $(command -v $tool)"
             else
               echo "Installing $tool..."
               case "$tool" in
@@ -388,9 +455,46 @@ jobs:
                   chmod +x "$HOME/.local/bin/yq"
                   ;;
               esac
-              echo "$tool installed: $($tool --version 2>&1 | head -1)"
+              if command -v "$tool" &>/dev/null; then
+                echo "PASS: $tool installed — $($tool --version 2>&1 | head -1)"
+              else
+                echo "FAIL: $tool could not be installed"
+                FAILED=1
+              fi
             fi
           done
+
+          # --- [7/8] NGC Docker Login ---
+          echo ""
+          echo "--- [7/8] NGC Docker Registry ---"
+          if echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin 2>&1; then
+            echo "PASS: NGC Docker login successful"
+          else
+            echo "FAIL: NGC Docker login failed"
+            FAILED=1
+          fi
+
+          # --- [8/8] Disk Space ---
+          echo ""
+          echo "--- [8/8] Disk Space ---"
+          FREE_GB=$(df -BG / | awk 'NR==2 {gsub(/G/,""); print $4}')
+          if [ "$FREE_GB" -ge 100 ]; then
+            echo "PASS: ${FREE_GB}G free (>= 100G required)"
+          else
+            echo "WARN: Only ${FREE_GB}G free — may run out during deployment"
+          fi
+
+          # --- Final Verdict ---
+          echo ""
+          echo "========================================"
+          if [ $FAILED -eq 0 ]; then
+            echo "  ALL GPU RUNNER PREFLIGHT CHECKS PASSED"
+          else
+            echo "  GPU RUNNER PREFLIGHT FAILED"
+            echo "  Aborting — fix the issues above before retrying."
+            exit 1
+          fi
+          echo "========================================"
 
       # =====================================================================
       # Phase 2: Notebook Runner Setup
