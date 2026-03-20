@@ -68,7 +68,9 @@
 # during CI persist on the host even after the pod is deleted. Without explicit
 # cleanup (minikube delete, docker compose down, docker rm/prune), orphaned
 # containers, networks, and volumes would accumulate and eventually cause
-# failures in subsequent runs (port conflicts, disk exhaustion).
+# failures in subsequent runs (port conflicts, disk exhaustion). A pre-cleanup
+# step also runs BEFORE the notebook to remove stale resources from prior
+# runs that may not have cleaned up properly (crash, timeout, cancellation).
 #
 # Notebook preprocessing
 # ----------------------
@@ -820,6 +822,36 @@ jobs:
           grep -cn "pidof systemd" "$SCRIPT" | xargs -I{} echo "  ✓ systemd guard: {} match(es)"
           grep -cn "_CI_IMGPULL_MAX" "$SCRIPT" | xargs -I{} echo "  ✓ ImagePull tolerance: {} match(es)"
           grep -cn "registry.k8s.io/kubebuilder" "$SCRIPT" | xargs -I{} echo "  ✓ kube-rbac-proxy fix: {} match(es)"
+
+      # =====================================================================
+      # Phase 3.5: Pre-Cleanup — Remove stale containers from prior runs
+      # ARC runners share the host Docker daemon. If a previous CI run's
+      # cleanup was incomplete (crash, timeout, cancellation), orphaned
+      # minikube containers/networks will conflict with the new run.
+      # =====================================================================
+      - name: Pre-Cleanup Stale Docker Resources
+        run: |
+          echo "Cleaning up stale Docker resources from prior runs..."
+
+          # 1. Try minikube CLI (may not be installed on fresh pod)
+          minikube delete 2>/dev/null && echo "  Deleted stale minikube cluster" || echo "  No stale minikube CLI or cluster"
+
+          # 2. Remove minikube containers by name (these live on the HOST Docker)
+          for c in minikube minikube-preload-sidecar; do
+            docker rm -f "$c" 2>/dev/null && echo "  Removed stale container: $c" || true
+          done
+
+          # 3. Remove any other minikube-labeled containers
+          docker rm -f $(docker ps -aq --filter "label=created_by.minikube.sigs.k8s.io=true") 2>/dev/null && echo "  Removed minikube-labeled containers" || true
+
+          # 4. Stop stale Docker Compose services (port conflicts: 8000, 9200, etc.)
+          docker compose -f deploy/docker-compose.yaml down -v 2>/dev/null && echo "  Stopped stale compose services" || true
+
+          # 5. Prune orphaned networks and volumes
+          docker network prune -f 2>/dev/null || true
+          docker volume prune -f 2>/dev/null || true
+
+          echo "Pre-cleanup done."
 
       # =====================================================================
       # Phase 4: Execute Notebook
