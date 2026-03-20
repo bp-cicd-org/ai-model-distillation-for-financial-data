@@ -79,8 +79,8 @@
 #   the notebook runner's CWD is the repo root (after actions/checkout), so we
 #   replace this with `project_root = Path.cwd()`.
 #
-#   Cell 7 (uv pip install): The ARC runner has no virtualenv, so uv refuses
-#   to install without --system. We inject the flag via string replacement.
+#   Cell 7 (pip install): The ARC runner Python is externally-managed (Debian
+#   policy). We replace uv with pip3 --break-system-packages.
 #
 #   Cell 9 (NGC API key): The original uses getpass() for interactive input.
 #   In CI, we replace this with os.environ["NGC_API_KEY"], which is injected
@@ -173,7 +173,7 @@
 # |  Cell | Original                             | CI Replacement                     |
 # |-------|--------------------------------------|------------------------------------|
 # |     5 | project_root = notebook_dir.parent   | project_root = Path.cwd()          |
-# |     7 | uv pip install -r ...                | uv pip install --system -r ...     |
+# |     7 | uv pip install -r ...                | pip3 --break-system-packages -r .. |
 # |     9 | getpass("Enter NGC key")             | os.environ["NGC_API_KEY"]          |
 # |    10 | deploy-nmp.sh --progress             | deploy-nmp.sh (no --progress)      |
 #
@@ -465,19 +465,27 @@ jobs:
           done
 
           # --- [7/9] huggingface-cli ---
+          # deploy-nmp.sh accepts either the CLI binary or the importable
+          # Python module. On ARC runners /usr/local/bin is read-only, so pip
+          # installs the module but can't write the CLI script. We mirror
+          # deploy-nmp.sh's own fallback: CLI binary OR importable module.
           echo ""
           echo "--- [7/9] huggingface-cli ---"
           if command -v huggingface-cli &>/dev/null; then
             echo "PASS: huggingface-cli at $(command -v huggingface-cli)"
+          elif python3 -c "import huggingface_hub" 2>/dev/null; then
+            echo "PASS: huggingface_hub module already importable"
           else
-            echo "Installing huggingface-cli..."
+            echo "Installing huggingface_hub..."
             pip3 install --break-system-packages huggingface_hub 2>&1 || true
             export PATH="$HOME/.local/bin:$PATH"
             if command -v huggingface-cli &>/dev/null; then
               echo "PASS: huggingface-cli installed"
+            elif python3 -c "import huggingface_hub" 2>/dev/null; then
+              echo "PASS: huggingface_hub module installed (CLI not on PATH, but deploy-nmp.sh accepts module)"
             else
-              echo "FAIL: huggingface-cli could not be installed"
-              echo "      deploy-nmp.sh requires huggingface-cli for model downloads"
+              echo "FAIL: huggingface_hub could not be installed"
+              echo "      deploy-nmp.sh requires huggingface-cli or importable huggingface_hub module"
               FAILED=1
             fi
           fi
@@ -575,12 +583,13 @@ jobs:
               'print(f"Project root: {project_root}")\n',
           ]
 
-          # Cell 7: Add --system to uv pip install.
-          # ARC runner has no virtualenv; uv requires --system to install
-          # into the system Python site-packages.
-          cell7_src = ''.join(nb['cells'][7]['source'])
+          # Cell 7: Replace uv pip install with pip3 --break-system-packages.
+          # ARC runner Python is externally-managed (Debian policy). Both
+          # `uv pip install --system` and plain `pip3 install` refuse to work.
+          # --break-system-packages is the only way to install into system
+          # site-packages on this runner.
           nb['cells'][7]['source'] = [
-              cell7_src.replace('uv pip install', 'uv pip install --system')
+              '!pip3 install --break-system-packages -r notebooks/requirements.txt -q\n',
           ]
 
           # Cell 9: Replace interactive getpass() with env var.
@@ -608,7 +617,7 @@ jobs:
 
           print(f"Preprocessed {nb_path}")
           print(f"  Cell 5:  project_root = Path.cwd()")
-          print(f"  Cell 7:  uv pip install --system")
+          print(f"  Cell 7:  pip3 --break-system-packages")
           print(f"  Cell 9:  getpass() -> os.environ")
           print(f"  Cell 10: deploy-nmp.sh without --progress")
           PREPROCESS
