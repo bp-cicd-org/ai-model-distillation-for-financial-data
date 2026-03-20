@@ -90,6 +90,14 @@
 #   all stdout/stderr behind a progress bar (redirects to /tmp/nemo-deploy.log).
 #   In CI we need full output for debugging, so we remove the flag.
 #
+# deploy-nmp.sh patching
+# ----------------------
+# The script's start_minikube() function registers a systemd service so that
+# minikube auto-restarts on Docker restart.  ARC runners are K8s pods with no
+# systemd (PID 1 is run.sh), so `systemctl daemon-reload` fatally fails under
+# `set -euo pipefail`.  We patch the three systemd lines to be guarded by a
+# `pidof systemd` check so the script continues cleanly in CI.
+#
 # We preprocess (rewrite) these cells rather than skipping them, because
 # subsequent cells depend on the variables they define or the side effects
 # they produce (project_root, dependencies, NGC_API_KEY, minikube cluster).
@@ -176,6 +184,11 @@
 # |     7 | uv pip install -r ...                | pip3 --break-system-packages -r .. |
 # |     9 | getpass("Enter NGC key")             | os.environ["NGC_API_KEY"]          |
 # |    10 | deploy-nmp.sh --progress             | deploy-nmp.sh (no --progress)      |
+#
+# Additionally, scripts/deploy-nmp.sh is patched at runtime:
+# |  Line  | Original                             | CI Patch                           |
+# |--------|--------------------------------------|------------------------------------|
+# | 590-92 | systemctl daemon-reload / enable     | Guarded by `pidof systemd` check   |
 #
 # =============================================================================
 
@@ -621,6 +634,64 @@ jobs:
           print(f"  Cell 9:  getpass() -> os.environ")
           print(f"  Cell 10: deploy-nmp.sh without --progress")
           PREPROCESS
+
+      - name: Patch deploy-nmp.sh for Non-Systemd Environment
+        run: |
+          SCRIPT="scripts/deploy-nmp.sh"
+          echo "Patching $SCRIPT: guard systemd service registration"
+          echo "  ARC runner has no systemd (PID 1 = run.sh, not systemd)"
+          echo "  The systemd unit is only for auto-restart on reboot — not needed in CI"
+          echo ""
+
+          # Guard the systemd tee + systemctl lines so they only run when
+          # systemd is the init system.  The original code (lines 572-592):
+          #
+          #   echo """[Unit]...""" | maybe_sudo tee /etc/systemd/system/minikube.service
+          #   maybe_sudo systemctl daemon-reload
+          #   maybe_sudo systemctl enable minikube
+          #
+          # We wrap them in: if pidof systemd >/dev/null 2>&1; then ... fi
+
+          python3 << 'PATCH'
+          with open('scripts/deploy-nmp.sh') as f:
+              content = f.read()
+
+          old_block = (
+              '  # Enable minikube to resume on restart\n'
+              '  echo """[Unit]'
+          )
+          new_block = (
+              '  # Enable minikube to resume on restart\n'
+              '  # CI-PATCH: Skip systemd registration when systemd is not PID 1\n'
+              '  if pidof systemd >/dev/null 2>&1; then\n'
+              '  echo """[Unit]'
+          )
+          content = content.replace(old_block, new_block, 1)
+
+          old_tail = (
+              '  maybe_sudo systemctl daemon-reload\n'
+              '  maybe_sudo systemctl enable minikube\n'
+              '}'
+          )
+          new_tail = (
+              '  maybe_sudo systemctl daemon-reload\n'
+              '  maybe_sudo systemctl enable minikube\n'
+              '  else\n'
+              '    log "No systemd detected (CI/container) — skipping minikube service registration"\n'
+              '  fi\n'
+              '}'
+          )
+          content = content.replace(old_tail, new_tail, 1)
+
+          with open('scripts/deploy-nmp.sh', 'w') as f:
+              f.write(content)
+
+          print("  Patched: systemd block guarded by 'pidof systemd' check")
+          PATCH
+
+          echo ""
+          echo "Verifying patch applied correctly:"
+          grep -n "pidof systemd" "$SCRIPT" || echo "WARNING: patch may not have applied"
 
       # =====================================================================
       # Phase 4: Execute Notebook
