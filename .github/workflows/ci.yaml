@@ -104,6 +104,12 @@
 # a counter that tolerates up to 30 consecutive checks (5 min at 10s
 # intervals) before dying. The counter resets when the error clears.
 #
+# Patch 3 (kube-rbac-proxy image): NeMo Operator Helm chart v25.10.0
+# references gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0, which was removed
+# from GCR (migrated to registry.k8s.io). We inject a `kubectl set image`
+# command after Helm install to correct the image reference before
+# wait_for_pods runs.
+#
 # We preprocess (rewrite) these cells rather than skipping them, because
 # subsequent cells depend on the variables they define or the side effects
 # they produce (project_root, dependencies, NGC_API_KEY, minikube cluster).
@@ -197,6 +203,9 @@
 # | 590-92 | systemctl daemon-reload / enable     | Guarded by `pidof systemd` check   |
 # | 849-67 | die immediately on ErrImagePull      | Tolerate 30 checks (5 min) before  |
 # |        |                                      | dying; reset counter when cleared  |
+# | 764-69 | helm install → sleep 20 → end func   | After sleep 20, kubectl set image  |
+# |        | (kube-rbac-proxy uses gcr.io which   | to fix kube-rbac-proxy image from  |
+# |        | was removed from GCR)                | gcr.io → registry.k8s.io           |
 #
 # =============================================================================
 
@@ -763,6 +772,39 @@ jobs:
               content = content.replace(old_imgpull, new_imgpull, 1)
               patches_applied.append("ImagePull tolerance (30 checks / 5 min)")
 
+          # ── Patch 3: Fix deprecated kube-rbac-proxy image registry ───
+          # NeMo Operator Helm chart v25.10.0 references
+          #   gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0
+          # which was removed from GCR (migrated to registry.k8s.io).
+          # We inject a `kubectl set image` after `helm install` + `sleep 20`
+          # to correct the image reference before wait_for_pods runs.
+
+          old_sleep = (
+              '    --password=$NGC_API_KEY\n'
+              '\n'
+              '  sleep 20\n'
+              '}'
+          )
+          new_sleep = (
+              '    --password=$NGC_API_KEY\n'
+              '\n'
+              '  sleep 20\n'
+              '\n'
+              '  # CI-PATCH: Fix deprecated gcr.io kube-rbac-proxy image.\n'
+              '  # gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0 was removed from GCR;\n'
+              '  # the canonical location is now registry.k8s.io.\n'
+              '  if kubectl get deployment nemo-nemo-operator-controller-manager -n "$NAMESPACE" &>/dev/null; then\n'
+              '    log "Fixing kube-rbac-proxy image reference (gcr.io → registry.k8s.io)..."\n'
+              '    kubectl set image deployment/nemo-nemo-operator-controller-manager \\\n'
+              '      kube-rbac-proxy=registry.k8s.io/kubebuilder/kube-rbac-proxy:v0.15.0 \\\n'
+              '      -n "$NAMESPACE" || warn "Could not patch kube-rbac-proxy image"\n'
+              '  fi\n'
+              '}'
+          )
+          if old_sleep in content:
+              content = content.replace(old_sleep, new_sleep, 1)
+              patches_applied.append("kube-rbac-proxy image fix (gcr.io → registry.k8s.io)")
+
           with open('scripts/deploy-nmp.sh', 'w') as f:
               f.write(content)
 
@@ -775,8 +817,9 @@ jobs:
 
           echo ""
           echo "Verifying patches:"
-          grep -n "pidof systemd" "$SCRIPT" && echo "  ✓ systemd guard found" || echo "  ✗ systemd guard MISSING"
-          grep -n "_CI_IMGPULL_MAX" "$SCRIPT" && echo "  ✓ ImagePull tolerance found" || echo "  ✗ ImagePull tolerance MISSING"
+          grep -cn "pidof systemd" "$SCRIPT" | xargs -I{} echo "  ✓ systemd guard: {} match(es)"
+          grep -cn "_CI_IMGPULL_MAX" "$SCRIPT" | xargs -I{} echo "  ✓ ImagePull tolerance: {} match(es)"
+          grep -cn "registry.k8s.io/kubebuilder" "$SCRIPT" | xargs -I{} echo "  ✓ kube-rbac-proxy fix: {} match(es)"
 
       # =====================================================================
       # Phase 4: Execute Notebook
