@@ -90,13 +90,19 @@
 #   all stdout/stderr behind a progress bar (redirects to /tmp/nemo-deploy.log).
 #   In CI we need full output for debugging, so we remove the flag.
 #
-# deploy-nmp.sh patching
-# ----------------------
-# The script's start_minikube() function registers a systemd service so that
-# minikube auto-restarts on Docker restart.  ARC runners are K8s pods with no
-# systemd (PID 1 is run.sh), so `systemctl daemon-reload` fatally fails under
-# `set -euo pipefail`.  We patch the three systemd lines to be guarded by a
-# `pidof systemd` check so the script continues cleanly in CI.
+# deploy-nmp.sh runtime patches (source file is NOT modified in repo)
+# -------------------------------------------------------------------
+# Patch 1 (systemd): start_minikube() registers a systemd service for
+# auto-restart on reboot. ARC runners have no systemd (PID 1 = run.sh),
+# so `systemctl daemon-reload` fatally fails under `set -euo pipefail`.
+# We guard the three systemd lines with a `pidof systemd` check.
+#
+# Patch 2 (ImagePull tolerance): wait_for_pods() dies immediately on
+# the first ErrImagePull/ImagePullBackOff. In practice, large NeMo images
+# (500MB+) can show transient ErrImagePull while still being pulled; K8s
+# retries with backoff and the pod often succeeds within minutes. We add
+# a counter that tolerates up to 30 consecutive checks (5 min at 10s
+# intervals) before dying. The counter resets when the error clears.
 #
 # We preprocess (rewrite) these cells rather than skipping them, because
 # subsequent cells depend on the variables they define or the side effects
@@ -185,10 +191,12 @@
 # |     9 | getpass("Enter NGC key")             | os.environ["NGC_API_KEY"]          |
 # |    10 | deploy-nmp.sh --progress             | deploy-nmp.sh (no --progress)      |
 #
-# Additionally, scripts/deploy-nmp.sh is patched at runtime:
-# |  Line  | Original                             | CI Patch                           |
+# Additionally, scripts/deploy-nmp.sh is patched at runtime (source NOT modified):
+# |  Patch | Original                             | CI Patch                           |
 # |--------|--------------------------------------|------------------------------------|
 # | 590-92 | systemctl daemon-reload / enable     | Guarded by `pidof systemd` check   |
+# | 849-67 | die immediately on ErrImagePull      | Tolerate 30 checks (5 min) before  |
+# |        |                                      | dying; reset counter when cleared  |
 #
 # =============================================================================
 
@@ -635,63 +643,140 @@ jobs:
           print(f"  Cell 10: deploy-nmp.sh without --progress")
           PREPROCESS
 
-      - name: Patch deploy-nmp.sh for Non-Systemd Environment
+      - name: Patch deploy-nmp.sh for CI Environment
         run: |
           SCRIPT="scripts/deploy-nmp.sh"
-          echo "Patching $SCRIPT: guard systemd service registration"
-          echo "  ARC runner has no systemd (PID 1 = run.sh, not systemd)"
-          echo "  The systemd unit is only for auto-restart on reboot — not needed in CI"
+          echo "Applying runtime patches to $SCRIPT (source file is NOT modified in repo)"
           echo ""
-
-          # Guard the systemd tee + systemctl lines so they only run when
-          # systemd is the init system.  The original code (lines 572-592):
-          #
-          #   echo """[Unit]...""" | maybe_sudo tee /etc/systemd/system/minikube.service
-          #   maybe_sudo systemctl daemon-reload
-          #   maybe_sudo systemctl enable minikube
-          #
-          # We wrap them in: if pidof systemd >/dev/null 2>&1; then ... fi
 
           python3 << 'PATCH'
           with open('scripts/deploy-nmp.sh') as f:
               content = f.read()
 
-          old_block = (
+          patches_applied = []
+
+          # ── Patch 1: Guard systemd service registration ──────────────
+          # ARC runner has no systemd (PID 1 = run.sh). The systemd unit
+          # is only for auto-restart on reboot — irrelevant in CI.
+          # Wrap the tee + systemctl lines in: if pidof systemd; then ... fi
+
+          old = (
               '  # Enable minikube to resume on restart\n'
               '  echo """[Unit]'
           )
-          new_block = (
+          new = (
               '  # Enable minikube to resume on restart\n'
-              '  # CI-PATCH: Skip systemd registration when systemd is not PID 1\n'
+              '  # CI-PATCH: Skip systemd when not PID 1\n'
               '  if pidof systemd >/dev/null 2>&1; then\n'
               '  echo """[Unit]'
           )
-          content = content.replace(old_block, new_block, 1)
+          if old in content:
+              content = content.replace(old, new, 1)
+              old_tail = (
+                  '  maybe_sudo systemctl daemon-reload\n'
+                  '  maybe_sudo systemctl enable minikube\n'
+                  '}'
+              )
+              new_tail = (
+                  '  maybe_sudo systemctl daemon-reload\n'
+                  '  maybe_sudo systemctl enable minikube\n'
+                  '  else\n'
+                  '    log "No systemd detected (CI/container) — skipping minikube service registration"\n'
+                  '  fi\n'
+                  '}'
+              )
+              content = content.replace(old_tail, new_tail, 1)
+              patches_applied.append("systemd guard")
 
-          old_tail = (
-              '  maybe_sudo systemctl daemon-reload\n'
-              '  maybe_sudo systemctl enable minikube\n'
-              '}'
+          # ── Patch 2: ImagePull tolerance in wait_for_pods() ──────────
+          # Original: die immediately on first ErrImagePull/ImagePullBackOff.
+          # Problem:  Large NeMo images (500MB+) can show transient ErrImagePull
+          #           while still pulling. K8s retries with backoff; the pod
+          #           often succeeds within a few minutes.
+          # Fix:      Tolerate up to 30 consecutive checks (30 × 10s = 5 min)
+          #           before dying. Reset counter when error clears.
+
+          # 2a: Insert counter variable before the while loop
+          old_loop = (
+              '  while true; do\n'
+              '    # Get current pod statuses'
           )
-          new_tail = (
-              '  maybe_sudo systemctl daemon-reload\n'
-              '  maybe_sudo systemctl enable minikube\n'
-              '  else\n'
-              '    log "No systemd detected (CI/container) — skipping minikube service registration"\n'
-              '  fi\n'
-              '}'
+          new_loop = (
+              '  local _ci_imgpull_count=0\n'
+              '  local _CI_IMGPULL_MAX=30  # CI-PATCH: tolerate 30 checks (5 min)\n'
+              '\n'
+              '  while true; do\n'
+              '    # Get current pod statuses'
           )
-          content = content.replace(old_tail, new_tail, 1)
+          if old_loop in content:
+              content = content.replace(old_loop, new_loop, 1)
+
+              # 2b: Replace the immediate-die block with a counter-based one
+              old_imgpull = (
+                  '    # --- Premature exit for ImagePull errors ---\n'
+                  '    local image_pull_errors\n'
+                  '    image_pull_errors=$(echo "$pod_statuses" | grep -E "ImagePullBackOff|ErrImagePull" || true)\n'
+                  '    if [[ -n "$image_pull_errors" ]]; then\n'
+                  '      err "Detected ImagePull errors!"\n'
+                  '      echo "$image_pull_errors" >&2 # Show the specific pods with errors\n'
+                  '      warn "Gathering diagnostics for pods with ImagePull errors..."\n'
+                  '      # Extract pod names with errors and collect diagnostics\n'
+                  '      local error_pods=($(echo "$image_pull_errors" | awk \'{print $1}\'))\n'
+                  '      local err_dir="nemo-errors-$(date +%s)"\n'
+                  '      mkdir -p "$err_dir" || warn "Could not create error directory: $err_dir"\n'
+                  '      for pod in "${error_pods[@]}"; do\n'
+                  '        collect_pod_diagnostics "$pod" "$NAMESPACE" "$err_dir"\n'
+                  '      done\n'
+                  '      # Restore trap before dying\n'
+                  '      eval "$old_err_trap"\n'
+                  '      trap - SIGINT\n'
+                  '      die "Exiting due to ImagePull errors. Diagnostics collected to $err_dir (if possible)."\n'
+                  '    fi\n'
+                  '    # --- End ImagePull check ---'
+              )
+              new_imgpull = (
+                  '    # --- ImagePull error check (CI-PATCHED: tolerance) ---\n'
+                  '    local image_pull_errors\n'
+                  '    image_pull_errors=$(echo "$pod_statuses" | grep -E "ImagePullBackOff|ErrImagePull" || true)\n'
+                  '    if [[ -n "$image_pull_errors" ]]; then\n'
+                  '      _ci_imgpull_count=$((_ci_imgpull_count + 1))\n'
+                  '      warn "ImagePull errors detected (check $_ci_imgpull_count/$_CI_IMGPULL_MAX):"\n'
+                  '      echo "$image_pull_errors" >&2\n'
+                  '      if (( _ci_imgpull_count >= _CI_IMGPULL_MAX )); then\n'
+                  '        err "ImagePull errors persisted for $_ci_imgpull_count consecutive checks!"\n'
+                  '        warn "Gathering diagnostics for pods with ImagePull errors..."\n'
+                  '        local error_pods=($(echo "$image_pull_errors" | awk \'{print $1}\'))\n'
+                  '        local err_dir="nemo-errors-$(date +%s)"\n'
+                  '        mkdir -p "$err_dir" || warn "Could not create error directory: $err_dir"\n'
+                  '        for pod in "${error_pods[@]}"; do\n'
+                  '          collect_pod_diagnostics "$pod" "$NAMESPACE" "$err_dir"\n'
+                  '        done\n'
+                  '        eval "$old_err_trap"\n'
+                  '        trap - SIGINT\n'
+                  '        die "Exiting due to persistent ImagePull errors. Diagnostics collected to $err_dir (if possible)."\n'
+                  '      fi\n'
+                  '    else\n'
+                  '      _ci_imgpull_count=0\n'
+                  '    fi\n'
+                  '    # --- End ImagePull check ---'
+              )
+              content = content.replace(old_imgpull, new_imgpull, 1)
+              patches_applied.append("ImagePull tolerance (30 checks / 5 min)")
 
           with open('scripts/deploy-nmp.sh', 'w') as f:
               f.write(content)
 
-          print("  Patched: systemd block guarded by 'pidof systemd' check")
+          print(f"Applied {len(patches_applied)} patch(es):")
+          for p in patches_applied:
+              print(f"  ✓ {p}")
+          if not patches_applied:
+              print("  WARNING: No patches matched — deploy-nmp.sh may have changed upstream")
           PATCH
 
           echo ""
-          echo "Verifying patch applied correctly:"
-          grep -n "pidof systemd" "$SCRIPT" || echo "WARNING: patch may not have applied"
+          echo "Verifying patches:"
+          grep -n "pidof systemd" "$SCRIPT" && echo "  ✓ systemd guard found" || echo "  ✗ systemd guard MISSING"
+          grep -n "_CI_IMGPULL_MAX" "$SCRIPT" && echo "  ✓ ImagePull tolerance found" || echo "  ✗ ImagePull tolerance MISSING"
 
       # =====================================================================
       # Phase 4: Execute Notebook
